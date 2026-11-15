@@ -27,6 +27,11 @@ API was not established in this comparison.
 | Quantum-minor construction of GT basis vectors | Ordered $\kappa$ factors and exact scale in Molev’s GT normalization | Unverified | Unverified |
 | Gelfand–Tsetlin subalgebra | Joint eigenvalues of the standard Capelli generators | Unverified | Unverified |
 | Molev’s raising and lowering operators | Constructors, general sparse action, and direct highest-line action | Unverified | Unverified |
+| Type B, C, and D matrix generators | Signed-index $F_{ij}$ in the ambient type A PBW basis | Matrix Lie algebras, with permutation between index conventions | Unverified |
+| Type B, C, and D normalized branching generators | PBW representatives of the $z_{ia}$ and $z_{ai}$ for the same-type reductions | Unverified | Unverified |
+| Classical interpolation polynomials | $Z_{n,-n}(u)$ at exact Cartan weights, with direct node operators | Unverified | Unverified |
+| Type B patterns and basis construction | Validation and ordered factors of Theorem 3.3 | Unverified | Unverified |
+| Yangian evaluation-module irreducibility | Exact endpoint tests for the general position of strings | Unverified | Unverified |
 
 Exact checks against passageMath agreed on 59,808 validation decisions,
 12,045 weight coordinates, and 375 rational PBW products. Generator actions
@@ -36,6 +41,9 @@ The Casimir matched live Macaulay2 on 105 GT vectors and matched passageMath
 symbolically on `sl_3` after converting to each tool's normalization.
 All 20 tested standard or dual tensor products matched Macaulay2 after
 conversion to Dynkin coordinates.
+The classical matrix-generator comparison matched 226 generator matrices,
+9,970 ordered Lie brackets, and six basis spans against passageMath 10.8.13
+over $\mathbf{Q}$ in types $B_2,B_3,C_2,C_3,D_3,D_4$ after permuting indices.
 
 [SageMath pattern API](https://doc.sagemath.org/html/en/reference/combinat/sage/combinat/gelfand_tsetlin_patterns.html) ·
 [SageMath PBW API](https://doc.sagemath.org/html/en/reference/algebras/sage/algebras/lie_algebras/poincare_birkhoff_witt.html) ·
@@ -389,4 +397,112 @@ highest = RowArray([[1, 0, 0], [1, 0], [1]])
 third = RowArray([[1, 0, 0], [0, 0], [0]])
 assert apply_highest_lowering(highest, 1) == {third: 1}
 assert apply_highest_raising(third, 1) == {highest: 2}
+```
+
+## Orthogonal and symplectic matrix generators
+
+`classical_matrix_unit(kind, rank, i, j)` constructs Molev’s
+$F_{ij}=E_{ij}-\theta_{ij}E_{-j,-i}$ in the ambient
+`EnvelopingElement` representation. Use `"B"` for $\mathfrak o_{2n+1}$,
+`"C"` for $\mathfrak{sp}_{2n}$, and `"D"` for $\mathfrak o_{2n}$, with
+`rank=n`. The signed indices run from $-n$ to $n$ with zero included only
+in type B. PBW terms use the corresponding one-based ambient matrix
+positions. $\theta_{ij}$ is $1$ in types B and D and
+$\operatorname{sgn}(i)\operatorname{sgn}(j)$ in type C.
+[Molev, equations (3.3) and (3.4)](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import EnvelopingElement, classical_matrix_unit
+
+assert classical_matrix_unit("C", 2, 2, -2) == 2 * EnvelopingElement.matrix_unit(4, 4, 1)
+assert classical_matrix_unit("D", 2, 2, -2) == 0
+```
+
+### Normalized branching generators
+
+`classical_branching_generator(kind, rank, i, j)` constructs a PBW
+representative of Molev’s normalized $z_{ij}$ from §3.1. Exactly one
+index is an outer label $a\in\{-n,n\}$, and the other is an inner index
+of $\mathfrak g_{n-1}$. Positive inner indices give raising operators
+$z_{ia}$ and lowering operators $z_{ai}$. The type B zero-index operators
+preserve the $\mathfrak g_{n-1}$ highest weight.
+
+The implementation groups the descending chains of (3.8) and keeps
+Cartan factors on the right. The returned representatives act as the
+normalized generators on $\mathfrak g_{n-1}$-highest vectors. Reconstructing
+matrix-unit actions with Lemma 3.1 uses products that omit $j=i$ in
+types B and C, and $j=\pm i$ in type D. Type D chains through $-i$ can
+still contribute to the normalized generator.
+[Molev, equation (3.8) and Lemma 3.1](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import classical_branching_generator, classical_matrix_unit
+
+def f(i, j):
+    return classical_matrix_unit("C", 2, i, j)
+
+assert classical_branching_generator("C", 2, 1, 2) == (
+    f(1, 2) * (2 * f(1, 1) - 2) + f(1, -1) * f(-1, 2)
+)
+```
+
+### Interpolation polynomials
+
+`classical_interpolation_polynomial(kind, rank, weight, u=None)`
+specializes the right Cartan functions of $Z_{n,-n}(u)$ at `weight`,
+the eigenvalues of $F_{11},\ldots,F_{nn}$ on the input vector. Omit `u`
+to get coefficients in ascending powers of $u^2$. Supply an integer or
+fraction to evaluate. The PBW representatives give the specialized
+action on the highest-vector space. For successive actions, the input
+weight is the weight at that step. At a collision with the outer node,
+types B and C use the leading coefficient and the inner nodes. Type D
+uses the signed-node formula (3.31) at coincident squared nodes.
+
+`classical_interpolation_node(kind, rank, i)` gives the symbolic value at
+$u=g_i$ without specializing a weight. Use $1\le i\le n$ in B and C,
+and $1\le i<n$ in D. In B and C the last value is the standalone
+$z_{n,-n}$. [Molev, equations (3.10)–(3.12)](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import classical_interpolation_node, classical_interpolation_polynomial
+
+assert classical_interpolation_polynomial("C", 1, (-1,), 0) == (
+    classical_interpolation_node("C", 1, 1)
+)
+```
+
+### Type B basis patterns
+
+A type B pattern is a sequence of `(sigma, highest_row, intermediate_row)`
+triples in descending level order. At level $k$, both rows have length
+$k$. All entries are nonpositive integers or all are nonpositive
+half-integers. `is_type_b_gt_pattern` checks both interlacing rules and
+the sign bit. `type_b_basis_factors` yields the product in written order,
+with factors `("z", k, i, j)` or `("Z", k, u)`. Apply the rightmost
+factor first, starting at a highest vector. Each factor belongs to the
+rank-$k$ subalgebra. [Molev, Lemma 3.2 and Theorem 3.3](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import is_type_b_gt_pattern, type_b_basis_factors
+
+pattern = ((1, (-2,), (-1,)),)
+assert is_type_b_gt_pattern(pattern)
+assert list(type_b_basis_factors(pattern)) == [("z", 1, 1, 0), ("Z", 1, -2)]
+```
+
+## Yangian evaluation-module strings
+
+`yangian_strings_in_general_position(first, second)` accepts two
+highest-weight pairs `(alpha, beta)` for $L(\alpha,\beta)$. The corresponding
+string is $\{\beta,\beta+1,\ldots,\alpha-1\}$. The test compares endpoints
+and unit-step lattices. `yangian_tensor_is_irreducible(highest_weights)`
+checks the condition for every pair, as in Molev’s Theorem 3.8.
+[Molev, §3.3](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import yangian_strings_in_general_position, yangian_tensor_is_irreducible
+
+assert yangian_strings_in_general_position((3, 0), (2, 1))
+assert not yangian_strings_in_general_position((2, 0), (4, 2))
+assert yangian_tensor_is_irreducible([(2, 0), (5, 3)])
 ```

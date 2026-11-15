@@ -2,6 +2,8 @@
 
 A Python interface with C kernels for working through the Gelfand–Tsetlin basis in [Molev, §2](https://arxiv.org/abs/math/0211289). The package covers patterns, matrix coefficients, the contravariant form, and sparse enveloping algebra actions. It also provides coproducts, the quadratic Casimir, and tensor decompositions with the standard module and its dual.
 
+For Molev’s §3, it provides matrix and branching generators in types B, C, and D, their interpolation polynomials, type B pattern validation and basis factors, and the Yangian evaluation-module string criterion.
+
 See [Capabilities](CAPABILITIES.md) for the tool comparison, API examples, indexing conventions, and arithmetic limits.
 
 ## Run locally

@@ -9,6 +9,8 @@ from typing import Iterable
 
 from ._gt import check_integer_rows, check_rows, coefficient_i64, inner_product_i64
 from ._enveloping import EnvelopingElement
+from ._classical import classical_branching_generator, classical_matrix_unit
+from ._classical_interpolation import classical_interpolation_node, classical_interpolation_polynomial
 from ._minors import (
     a_polynomial,
     b_polynomial,
@@ -18,6 +20,7 @@ from ._minors import (
     tau_raising,
 )
 from ._molev import lowering_operator, raising_operator
+from ._type_b import is_type_b_gt_pattern, type_b_basis_factors
 
 
 __all__ = [
@@ -30,10 +33,15 @@ __all__ = [
     "apply_highest_raising",
     "b_polynomial",
     "c_polynomial",
+    "classical_branching_generator",
+    "classical_interpolation_node",
+    "classical_interpolation_polynomial",
+    "classical_matrix_unit",
     "coefficient",
     "gt_eigenvalues",
     "inner_product",
     "is_gt_pattern",
+    "is_type_b_gt_pattern",
     "kappa_factors",
     "kappa_scale",
     "lowering_operator",
@@ -43,7 +51,10 @@ __all__ = [
     "tau_lowering",
     "tau_raising",
     "tensor_with_standard",
+    "type_b_basis_factors",
     "weight",
+    "yangian_strings_in_general_position",
+    "yangian_tensor_is_irreducible",
 ]
 
 
@@ -150,3 +161,4 @@ from ._kappa import kappa_factors, kappa_scale
 from ._projectors import apply_dual_standard_projector
 from ._tensor import quadratic_casimir_eigenvalue, tensor_with_standard
 from ._weight import weight
+from ._yangian_strings import yangian_strings_in_general_position, yangian_tensor_is_irreducible
