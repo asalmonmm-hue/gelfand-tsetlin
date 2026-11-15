@@ -5,6 +5,7 @@ setup(
     package_dir={"": "src"},
     packages=["gelfand_tsetlin"],
     ext_modules=[
+        Extension("gelfand_tsetlin._uea", ["src/gelfand_tsetlin/_uea.c"]),
         Extension(
             "gelfand_tsetlin._gt",
             [

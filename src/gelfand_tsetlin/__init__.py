@@ -8,9 +8,10 @@ from operator import index
 from typing import Iterable
 
 from ._gt import check_rows, coefficient_i64, inner_product_i64
+from ._enveloping import EnvelopingElement
 
 
-__all__ = ["RowArray", "coefficient", "inner_product", "is_gt_pattern"]
+__all__ = ["EnvelopingElement", "RowArray", "coefficient", "inner_product", "is_gt_pattern"]
 
 
 @dataclass(frozen=True, slots=True, init=False)

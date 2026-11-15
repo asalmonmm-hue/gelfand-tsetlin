@@ -66,6 +66,29 @@ assert inner_product([[2, 0], [1]], [[2, 0], [1]]) == 2
 assert inner_product([[2, 0], [1]], [[2, 0], [2]]) == 0
 ```
 
+## Universal enveloping algebra
+
+`EnvelopingElement` represents elements of the rational form of `U(gl_N)`
+as sparse sums of PBW monomials in row-major matrix-unit order. Use
+`matrix_unit(rank, i, j)` for a generator and `scalar(rank, value)` for
+a constant. The constructor also accepts a mapping from words of one-based
+pairs to integers or fractions. The empty word is the identity.
+
+```python
+from gelfand_tsetlin import EnvelopingElement
+
+e12 = EnvelopingElement.matrix_unit(2, 1, 2)
+e21 = EnvelopingElement.matrix_unit(2, 2, 1)
+e11 = EnvelopingElement.matrix_unit(2, 1, 1)
+e22 = EnvelopingElement.matrix_unit(2, 2, 2)
+assert e21 * e12 == e12 * e21 + e22 - e11
+assert (e12 ** 2).terms == {((1, 2), (1, 2)): 1}
+```
+
+The C multiplication kernel normal-orders products using the matrix-unit
+commutators and combines equal terms. Symbolic products allocate storage for
+their terms and can grow as commutators expand.
+
 ## Run locally
 
 Build with CPython and a C compiler for that Python installation.
