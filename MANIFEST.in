@@ -1,2 +1,4 @@
 include src/gelfand_tsetlin/gt_coefficient.h
 include src/gelfand_tsetlin/gt_inner_product.h
+
+include CAPABILITIES.md
