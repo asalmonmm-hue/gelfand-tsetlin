@@ -2,6 +2,34 @@
 
 See the [README](README.md) for setup and benchmarks.
 
+## Comparison
+
+The comparison uses passageMath’s Sage-compatible API and Macaulay2’s
+`LieAlgebraRepresentations` package. **Unverified** means an equivalent
+API was not established in this comparison.
+
+| Capability | gelfand-tsetlin | SageMath / passageMath | Macaulay2 |
+| --- | --- | --- | --- |
+| Raw pattern storage | `RowArray` preserves nested rows before validation | Native nested sequences and `GelfandTsetlinPattern` | Flat entry list and type A `GTPattern` |
+| Pattern validation | Checks shape, integrality of gaps, and common shifts | Membership checks interlacing on supplied rows | Type A constructor checks triangular entry count and interlacing |
+| Full diagonal weights | `weight(pattern)` | `weight()` | Pattern content and simple-coroot coordinates |
+| Fixed-top-row enumeration | Planned | `GelfandTsetlinPatterns(top_row=...)` | `gtPatterns` for partition top rows |
+| Semistandard tableau conversion | Planned | `to_tableau()` and construction from tableaux | Unverified |
+| GT generator action | Single coefficients and sparse columns for `gl_N` | GT-specific action unverified | `GTrepresentationMatrices` for irreducible `sl_N` modules |
+| Exact dense generator matrices | Assemble from sparse columns | Unverified | Direct via `GTrepresentationMatrices` |
+| Contravariant pairing in Molev’s basis | `inner_product` | Unverified | Unverified |
+| Rational PBW arithmetic | `EnvelopingElement` in row-major matrix-unit order | `pbw_basis()` | `universalEnvelopingAlgebra` on the documented semisimple domain |
+| Molev’s raising and lowering operators | Constructors and sparse action | Unverified | Unverified |
+
+Exact checks against passageMath agreed on 59,808 validation decisions,
+12,045 weight coordinates, and 375 rational PBW products. Generator actions
+agreed with Macaulay2 on all 39,400 matrix entries across four `sl_3` modules
+after matching the GT basis order.
+
+[SageMath pattern API](https://doc.sagemath.org/html/en/reference/combinat/sage/combinat/gelfand_tsetlin_patterns.html) ·
+[SageMath PBW API](https://doc.sagemath.org/html/en/reference/algebras/sage/algebras/lie_algebras/poincare_birkhoff_witt.html) ·
+[Macaulay2 LieAlgebraRepresentations](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/LieAlgebraRepresentations/html/index.html)
+
 ## Patterns and validation
 
 The examples follow [Molev, §2](https://arxiv.org/abs/math/0211289). Read the rows from the highest weight at the top down to the length-one row.
