@@ -50,6 +50,22 @@ through the Python interface if a normalized entry or a coefficient calculation
 exceeds its range. The real results are exact. For a nonreal common shift, a
 diagonal result is returned as a Python `complex`, with its usual precision.
 
+## Contravariant form
+
+`inner_product(left, right)` evaluates Molev's Proposition 2.4 on two GT
+basis vectors with the same highest weight. Distinct patterns pair to zero.
+For a matching pair, each quotient of factorials reduces to a product of
+consecutive integers. The C kernel multiplies those factors without allocating
+or computing factorials. It returns an exact integer and reports overflow above
+`INT64_MAX`.
+
+```python
+from gelfand_tsetlin import inner_product
+
+assert inner_product([[2, 0], [1]], [[2, 0], [1]]) == 2
+assert inner_product([[2, 0], [1]], [[2, 0], [2]]) == 0
+```
+
 ## Run locally
 
 Build with CPython and a C compiler for that Python installation.

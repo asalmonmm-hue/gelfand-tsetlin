@@ -2,6 +2,7 @@
 #include <Python.h>
 
 #include "gt_coefficient.h"
+#include "gt_inner_product.h"
 
 /* Results use the Python C API convention: 1 true, 0 false, -1 error. */
 static int
@@ -150,9 +151,30 @@ coefficient_i64(PyObject *Py_UNUSED(self), PyObject *args)
     return fraction_result(status, numerator, denominator);
 }
 
+static PyObject *
+inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
+{
+    Py_ssize_t rank;
+    PyObject *left, *right;
+    if (!PyArg_ParseTuple(args, "nO!O!:inner_product_i64", &rank,
+                          &PyTuple_Type, &left, &PyTuple_Type, &right)) {
+        return NULL;
+    }
+    int64_t *packed = pack_pair(rank, left, right);
+    if (packed == NULL) {
+        return NULL;
+    }
+    int64_t numerator = 0, denominator = 1;
+    enum gt_coefficient_status status = gt_inner_product(
+        (size_t)rank, packed, packed + PyTuple_GET_SIZE(left), &numerator, &denominator);
+    PyMem_Free(packed);
+    return fraction_result(status, numerator, denominator);
+}
+
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
     {"coefficient_i64", coefficient_i64, METH_VARARGS, "Evaluate a native GT coefficient."},
+    {"inner_product_i64", inner_product_i64, METH_VARARGS, "Evaluate the native GT pairing."},
     {NULL, NULL, 0, NULL}
 };
 

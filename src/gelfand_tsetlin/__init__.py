@@ -7,10 +7,10 @@ from numbers import Rational
 from operator import index
 from typing import Iterable
 
-from ._gt import check_rows, coefficient_i64
+from ._gt import check_rows, coefficient_i64, inner_product_i64
 
 
-__all__ = ["RowArray", "coefficient", "is_gt_pattern"]
+__all__ = ["RowArray", "coefficient", "inner_product", "is_gt_pattern"]
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -92,3 +92,15 @@ def coefficient(i, j, source, target):
         value = numerator + origin_real
         return complex(value, origin_imag) if origin_imag else value
     return numerator if denominator == 1 else Fraction(numerator, denominator)
+
+
+def inner_product(left, right):
+    """Return Molev's contravariant pairing of two GT basis vectors.
+
+    Proposition 2.4 gives an exact integer for matching patterns and zero
+    for distinct patterns. Both inputs must be valid and have the same
+    highest weight. The pairing is independent of the common shift.
+    """
+    rank, _, _, left, right = _normalized_pair(left, right)
+    numerator, _ = inner_product_i64(rank, left, right)
+    return numerator
