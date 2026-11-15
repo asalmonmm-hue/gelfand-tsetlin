@@ -19,7 +19,7 @@ API was not established in this comparison.
 | Exact dense generator matrices | Assemble from sparse columns | Unverified | Direct via `GTrepresentationMatrices` |
 | Contravariant pairing in Molev’s basis | `inner_product` | Unverified | Unverified |
 | Rational PBW arithmetic | `EnvelopingElement` in row-major matrix-unit order | `pbw_basis()` | `universalEnvelopingAlgebra` on the documented semisimple domain |
-| Molev’s raising and lowering operators | Constructors and sparse action | Unverified | Unverified |
+| Molev’s raising and lowering operators | Constructors, general sparse action, and direct highest-line action | Unverified | Unverified |
 
 Exact checks against passageMath agreed on 59,808 validation decisions,
 12,045 weight coordinates, and 375 rational PBW products. Generator actions
@@ -156,4 +156,34 @@ from gelfand_tsetlin import RowArray, apply_enveloping, lowering_operator
 highest = RowArray([[1, 0, 0], [1, 0], [1]])
 third = RowArray([[1, 0, 0], [0, 0], [0]])
 assert apply_enveloping(lowering_operator(3, 1), highest) == {third: 1}
+```
+
+### Direct highest-line action
+
+`apply_highest_raising(source, i, level=None)` and
+`apply_highest_lowering(source, i, level=None)` act on a
+`gl_(level-1)`-highest GT vector. The level defaults to the ambient rank.
+A source is highest at that step when every row below the length-`level-1`
+row is a prefix of it. An admissible move changes entry `i` in that row
+and in every shorter prefix that contains it.
+
+Each call returns a sparse dictionary with at most one target. An
+inadmissible shift yields an empty dictionary. An invalid pattern or
+a pattern off the highest line raises `ValueError`. As with
+`apply_enveloping`, the source can have a real common shift.
+
+In Molev’s normalization, lowering has coefficient one and raising uses
+the product in Lemma 2.13. The C evaluator takes `O(level)` arithmetic
+operations for that product and uses exact Python integers of arbitrary
+size. Input validation and target construction are separate costs.
+The direct calls avoid constructing or applying a PBW expression.
+[Molev, equations (2.18) and (2.28)](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import RowArray, apply_highest_lowering, apply_highest_raising
+
+highest = RowArray([[1, 0, 0], [1, 0], [1]])
+third = RowArray([[1, 0, 0], [0, 0], [0]])
+assert apply_highest_lowering(highest, 1) == {third: 1}
+assert apply_highest_raising(third, 1) == {highest: 2}
 ```

@@ -268,6 +268,75 @@ inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
     return fraction_result(status, numerator, denominator);
 }
 
+static PyObject *
+shifted_integer(PyObject *entry, Py_ssize_t column)
+{
+    if (!PyLong_CheckExact(entry)) {
+        PyErr_SetString(PyExc_TypeError, "highest-line entries must be exact integers");
+        return NULL;
+    }
+    if (column == 0) {
+        return Py_NewRef(entry);
+    }
+    PyObject *offset = PyLong_FromSsize_t(column);
+    if (offset == NULL) {
+        return NULL;
+    }
+    PyObject *shifted = PyNumber_Subtract(entry, offset);
+    Py_DECREF(offset);
+    return shifted;
+}
+
+static PyObject *
+highest_line_coefficient(PyObject *Py_UNUSED(self), PyObject *args)
+{
+    PyObject *top, *middle;
+    Py_ssize_t i;
+    int step;
+    if (!PyArg_ParseTuple(args, "O!O!ni:highest_line_coefficient",
+                          &PyTuple_Type, &top, &PyTuple_Type, &middle, &i, &step)) {
+        return NULL;
+    }
+    Py_ssize_t rank = PyTuple_GET_SIZE(top);
+    if (rank < 2 || PyTuple_GET_SIZE(middle) != rank - 1 ||
+        i < 1 || i >= rank || (step != 1 && step != -1)) {
+        PyErr_SetString(PyExc_ValueError, "invalid highest-line rows, index, or step");
+        return NULL;
+    }
+
+    PyObject *entry = PyTuple_GET_ITEM(middle, i - 1);
+    PyObject *bound = PyTuple_GET_ITEM(top, step == 1 ? i - 1 : i);
+    if (!PyLong_CheckExact(entry) || !PyLong_CheckExact(bound)) {
+        PyErr_SetString(PyExc_TypeError, "highest-line entries must be exact integers");
+        return NULL;
+    }
+    int admissible = PyObject_RichCompareBool(entry, bound, step == 1 ? Py_LT : Py_GT);
+    if (admissible < 0) {
+        return NULL;
+    }
+    if (!admissible || step == -1) {
+        return PyLong_FromLong(admissible);
+    }
+
+    /* Molev (2.28), evaluated with exact integers of arbitrary size. */
+    PyObject *m = shifted_integer(entry, i - 1);
+    if (m == NULL) {
+        return NULL;
+    }
+    PyObject *product = PyLong_FromLong(-1);
+    for (Py_ssize_t j = 0; product != NULL && j < rank; j++) {
+        PyObject *ell = shifted_integer(PyTuple_GET_ITEM(top, j), j);
+        PyObject *factor = ell == NULL ? NULL : PyNumber_Subtract(m, ell);
+        Py_XDECREF(ell);
+        PyObject *next = factor == NULL ? NULL : PyNumber_Multiply(product, factor);
+        Py_XDECREF(factor);
+        Py_DECREF(product);
+        product = next;
+    }
+    Py_DECREF(m);
+    return product;
+}
+
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
     {"check_integer_rows", check_integer_rows, METH_O,
@@ -276,6 +345,8 @@ static PyMethodDef methods[] = {
     {"adjacent_coefficients_i64", adjacent_coefficients_i64, METH_VARARGS,
      "Evaluate all nonzero terms for one adjacent generator."},
     {"inner_product_i64", inner_product_i64, METH_VARARGS, "Evaluate the native GT pairing."},
+    {"highest_line_coefficient", highest_line_coefficient, METH_VARARGS,
+     "Evaluate the exact raising or lowering coefficient between highest lines."},
     {NULL, NULL, 0, NULL}
 };
 

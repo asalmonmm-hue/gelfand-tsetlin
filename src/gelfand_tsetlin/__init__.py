@@ -16,6 +16,8 @@ __all__ = [
     "EnvelopingElement",
     "RowArray",
     "apply_enveloping",
+    "apply_highest_lowering",
+    "apply_highest_raising",
     "coefficient",
     "inner_product",
     "is_gt_pattern",
@@ -122,4 +124,5 @@ def inner_product(left, right):
 
 # These modules use the pattern and coefficient helpers defined above.
 from ._action import apply_enveloping
+from ._highest import apply_highest_lowering, apply_highest_raising
 from ._weight import weight
