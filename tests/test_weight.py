@@ -18,7 +18,11 @@ class WeightTests(TestCase):
 
     def test_large_integer_weights_are_exact(self):
         wide = 2**100
-        self.assertEqual(weight([[wide, -3], [wide - 1]]), (wide - 1, -2))
+        source = [[wide, -3], [wide - 1]]
+        self.assertEqual(weight(source), (wide - 1, -2))
+        self.assertEqual(coefficient(1, 1, source, source), wide - 1)
+        self.assertEqual(coefficient(2, 2, source, source), -2)
+        self.assertEqual(coefficient(1, 1, source, [[wide, -3], [wide]]), 0)
 
     def test_exact_common_real_shifts(self):
         third = Fraction(1, 3)

@@ -59,7 +59,94 @@ accumulate_term(PyObject *result, PyObject *key, PyObject *coefficient)
     return status;
 }
 
-/* Continue with the swapped pair in place. Only the shorter bracket terms
+static PyObject *
+next_binomial(PyObject *current, Py_ssize_t length, Py_ssize_t k)
+{
+    /* binom(length, k+1) = binom(length, k) * (length-k) / (k+1). */
+    PyObject *numerator = PyLong_FromSsize_t(length - k);
+    if (numerator == NULL) {
+        return NULL;
+    }
+    PyObject *product = PyNumber_Multiply(current, numerator);
+    Py_DECREF(numerator);
+    if (product == NULL) {
+        return NULL;
+    }
+    PyObject *denominator = PyLong_FromSsize_t(k + 1);
+    PyObject *next = denominator == NULL ? NULL : PyNumber_FloorDivide(product, denominator);
+    Py_XDECREF(denominator);
+    Py_DECREF(product);
+    return next;
+}
+
+/* Commute a Cartan run past one root generator. If [x,y] = sign*root for
+ * the inverted pair, the ordered block is root*(H+sign)^count or
+ * (H+sign)^count*root, depending on which side originally contained H. */
+static int
+order_cartan_run(PyObject *work, PyObject *word, PyObject *coefficient,
+                 Py_ssize_t start, Py_ssize_t count, int cartan_on_left,
+                 PyObject *cartan, PyObject *root, int sign)
+{
+    PyObject *binomial = PyLong_FromLong(1);
+    if (binomial == NULL) {
+        return -1;
+    }
+    for (Py_ssize_t kept = 0; kept < count; kept++) {
+        Py_ssize_t removed = count - kept;
+        Py_ssize_t root_position = cartan_on_left ? start : start + kept;
+        PyObject *shorter = PyList_New(PyList_GET_SIZE(word) - removed);
+        if (shorter == NULL) {
+            Py_DECREF(binomial);
+            return -1;
+        }
+        for (Py_ssize_t i = 0; i < PyList_GET_SIZE(shorter); i++) {
+            PyObject *entry;
+            if (i >= start && i <= start + kept) {
+                entry = i == root_position ? root : cartan;
+            } else {
+                entry = PyList_GET_ITEM(word, i < start ? i : i + removed);
+            }
+            PyList_SET_ITEM(shorter, i, Py_NewRef(entry));
+        }
+        PyObject *value = PyNumber_Multiply(coefficient, binomial);
+        if (value != NULL && sign < 0 && removed % 2 != 0) {
+            PyObject *negative = PyNumber_Negative(value);
+            Py_SETREF(value, negative);
+        }
+        int status = value == NULL ? -1 : push_term(work, shorter, value);
+        Py_XDECREF(value);
+        Py_DECREF(shorter);
+        if (status < 0) {
+            Py_DECREF(binomial);
+            return -1;
+        }
+        if (kept + 1 < count) {
+            PyObject *next = next_binomial(binomial, count, kept);
+            Py_SETREF(binomial, next);
+            if (binomial == NULL) {
+                return -1;
+            }
+        }
+    }
+    Py_DECREF(binomial);
+
+    /* Rotate the original block. Reuse the references already owned by the
+     * list, including distinct int objects with the same generator ID. */
+    if (cartan_on_left) {
+        for (Py_ssize_t i = start + count; i > start; i--) {
+            PyList_SET_ITEM(word, i, PyList_GET_ITEM(word, i - 1));
+        }
+        PyList_SET_ITEM(word, start, root);
+    } else {
+        for (Py_ssize_t i = start; i < start + count; i++) {
+            PyList_SET_ITEM(word, i, PyList_GET_ITEM(word, i + 1));
+        }
+        PyList_SET_ITEM(word, start + count, root);
+    }
+    return 0;
+}
+
+/* Continue with the swapped pair in place. Only the shorter terms
  * go on the explicit worklist, so the kernel requires no recursive calls. */
 static int
 order_word(PyObject *work, PyObject *word, PyObject *coefficient,
@@ -79,6 +166,30 @@ order_word(PyObject *work, PyObject *word, PyObject *coefficient,
         /* E_ij E_kl = E_kl E_ij + delta_jk E_il - delta_li E_kj. */
         Py_ssize_t i = x_id / rank, j = x_id % rank;
         Py_ssize_t k = y_id / rank, l = y_id % rank;
+        int sign = (j == k) - (l == i);
+        if (sign != 0 && (i == j || k == l)) {
+            int cartan_on_left = i == j;
+            Py_ssize_t start = position, stop = position + 2;
+            if (cartan_on_left) {
+                while (start > 0 && PyLong_AsSsize_t(PyList_GET_ITEM(word, start - 1)) == x_id) {
+                    start--;
+                }
+            } else {
+                while (stop < PyList_GET_SIZE(word) &&
+                       PyLong_AsSsize_t(PyList_GET_ITEM(word, stop)) == y_id) {
+                    stop++;
+                }
+            }
+            Py_ssize_t count = stop - start - 1;
+            if (count > 1) {
+                if (order_cartan_run(work, word, coefficient, start, count, cartan_on_left,
+                                     cartan_on_left ? x : y, cartan_on_left ? y : x, sign) < 0) {
+                    return -1;
+                }
+                position = start > 0 ? start - 1 : 0;
+                continue;
+            }
+        }
         if (j == k && push_bracket_term(
                 work, word, position, i * rank + l, coefficient) < 0) {
             return -1;
@@ -284,20 +395,7 @@ advance_split(coproduct_run *runs, Py_ssize_t count, Py_ssize_t *left_length,
         coproduct_run *run = &runs[i - 1];
         Py_ssize_t k = run->left_count;
         if (k < run->length) {
-            /* binom(length, k+1) = binom(length, k) * (length-k) / (k+1). */
-            PyObject *numerator = PyLong_FromSsize_t(run->length - k);
-            PyObject *denominator = PyLong_FromSsize_t(k + 1);
-            PyObject *product = NULL;
-            PyObject *next = NULL;
-            if (numerator != NULL && denominator != NULL) {
-                product = PyNumber_Multiply(run->binomial, numerator);
-                if (product != NULL) {
-                    next = PyNumber_FloorDivide(product, denominator);
-                }
-            }
-            Py_XDECREF(numerator);
-            Py_XDECREF(denominator);
-            Py_XDECREF(product);
+            PyObject *next = next_binomial(run->binomial, run->length, k);
             if (next == NULL) {
                 return -1;
             }

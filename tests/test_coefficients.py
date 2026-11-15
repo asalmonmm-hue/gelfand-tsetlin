@@ -1,7 +1,7 @@
 from fractions import Fraction
 from unittest import TestCase
 
-from gelfand_tsetlin import RowArray, coefficient
+from gelfand_tsetlin import EnvelopingElement, RowArray, apply_enveloping, coefficient
 
 
 class CoefficientTests(TestCase):
@@ -82,6 +82,26 @@ class CoefficientTests(TestCase):
         target = [top, [2**62 + 1]]
         with self.assertRaises(OverflowError):
             coefficient(1, 2, source, target)
+        with self.assertRaises(OverflowError):
+            apply_enveloping(EnvelopingElement.matrix_unit(2, 1, 2), source)
+
+    def test_retries_when_intermediate_ratio_overflows(self):
+        x = 10**12
+        source = (
+            (4 * x + 2, 4 * x + 1, 2 * x + 1, 0),
+            (4 * x + 1, 3 * x + 1, 2 * x + 1),
+            (3 * x + 1, 2 * x + 1),
+            (2 * x + 1,),
+        )
+        target = RowArray((source[0], (4 * x + 2, *source[1][1:]), *source[2:]))
+        self.assertEqual(coefficient(3, 4, source, target), 4)
+        self.assertEqual(apply_enveloping(EnvelopingElement.matrix_unit(4, 3, 4), source), {target: 4})
+
+    def test_adjacent_coefficients_allow_oversized_offsets(self):
+        top = (1 << 64, 0)
+        source = [top, (top[0],)]
+        self.assertEqual(coefficient(2, 1, source, [top, (top[0] - 1,)]), 1)
+        self.assertEqual(coefficient(2, 1, source, [top, (top[0] - 2,)]), 0)
 
     def test_cancels_factors_whose_magnitude_exceeds_signed_int64(self):
         largest = 2**63 - 1

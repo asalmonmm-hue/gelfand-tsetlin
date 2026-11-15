@@ -257,13 +257,15 @@ inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
                           &PyTuple_Type, &left, &PyTuple_Type, &right)) {
         return NULL;
     }
-    int64_t *packed = pack_patterns(rank, left, right);
+    int same = left == right;
+    int64_t *packed = pack_patterns(rank, left, same ? NULL : right);
     if (packed == NULL) {
         return NULL;
     }
     int64_t numerator = 0, denominator = 1;
+    const int64_t *packed_right = same ? packed : packed + PyTuple_GET_SIZE(left);
     enum gt_coefficient_status status = gt_inner_product(
-        (size_t)rank, packed, packed + PyTuple_GET_SIZE(left), &numerator, &denominator);
+        (size_t)rank, packed, packed_right, &numerator, &denominator);
     PyMem_Free(packed);
     return fraction_result(status, numerator, denominator);
 }

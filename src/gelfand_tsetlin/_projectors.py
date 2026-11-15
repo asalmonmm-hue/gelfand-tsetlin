@@ -7,11 +7,11 @@ from . import RowArray, _pattern_coordinates, check_rows
 from ._action import _unit_action
 
 
-def _apply_shifted_characteristic(terms, rank, root, cache, offsets_cache):
+def _apply_shifted_characteristic(terms, rank, root, cache, offsets_cache, row_sums):
     result = {key: -root * value for key, value in terms.items()} if root else {}
     for (j, pattern), scale in terms.items():
         for i in range(1, rank + 1):
-            for target, value in _unit_action(i, j, pattern, cache, offsets_cache).items():
+            for target, value in _unit_action(i, j, pattern, cache, offsets_cache, row_sums).items():
                 key = (i, target)
                 total = result.get(key, 0) + scale * value
                 if total:
@@ -46,12 +46,12 @@ def apply_dual_standard_projector(source, j, r):
 
     alpha = highest[r - 1] + rank - r
     terms, denominator = {(j, source): 1}, 1
-    cache, offsets_cache = {}, {}
+    cache, offsets_cache, row_sums = {}, {}, {}
     for s, entry in enumerate(highest, 1):
         if s == r or (s < rank and entry == highest[s]):
             continue
         root = entry + rank - s
-        terms = _apply_shifted_characteristic(terms, rank, root, cache, offsets_cache)
+        terms = _apply_shifted_characteristic(terms, rank, root, cache, offsets_cache, row_sums)
         if not terms:
             return {}
         denominator *= alpha - root

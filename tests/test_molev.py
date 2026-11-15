@@ -62,18 +62,25 @@ class EnvelopingActionTests(TestCase):
              RowArray([top, (3, 0), (2,)]): Fraction(2, 3)},
         )
 
-    def test_adjacent_column_preserves_absent_support_beyond_native_range(self):
+    def test_adjacent_column_handles_oversized_offsets(self):
         top = (1 << 64, 0)
         source = RowArray([top, (top[0],)])
         self.assertEqual(apply_enveloping(EnvelopingElement.matrix_unit(2, 1, 2), source), {})
-        with self.assertRaises(OverflowError):
-            apply_enveloping(EnvelopingElement.matrix_unit(2, 2, 1), source)
+        target = RowArray([top, (top[0] - 1,)])
+        self.assertEqual(apply_enveloping(EnvelopingElement.matrix_unit(2, 2, 1), source), {target: 1})
 
     def test_products_act_in_operator_order(self):
         source = RowArray([[1, 0, 0], [1, 0], [1]])
         e12, e21 = matrix_unit(1, 2), matrix_unit(2, 1)
         self.assertEqual(apply_enveloping(e12 * e21, source), {source: 1})
         self.assertEqual(apply_enveloping(e21 * e12, source), {})
+
+    def test_diagonal_products_use_exact_unpacked_weights(self):
+        wide = 1 << 100
+        source = RowArray(((wide, -3), (wide - 1,)))
+        e11 = EnvelopingElement.matrix_unit(2, 1, 1)
+        e22 = EnvelopingElement.matrix_unit(2, 2, 2)
+        self.assertEqual(apply_enveloping(e11 * e22 + e22, source), {source: -2 * wide})
 
     def test_scalar_action_is_exact_and_zero_has_empty_support(self):
         source = RowArray([[1, 0, 0], [1, 0], [1]])

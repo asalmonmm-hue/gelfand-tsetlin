@@ -21,6 +21,12 @@ class InnerProductTests(TestCase):
         self.assertEqual(inner_product(right, left), 0)
         self.assertEqual(inner_product(left, left), 2)
 
+    def test_orthogonality_beyond_native_offset_range(self):
+        left = ((2**63, 0), (0,))
+        right = ((2**63, 0), (1,))
+        self.assertEqual(inner_product(left, right), 0)
+        self.assertEqual(inner_product(right, left), 0)
+
     def test_rank_three_raising_and_lowering_are_adjoint(self):
         lower = [[4, 2, 0], [3, 1], [2]]
         for middle in ([4, 1], [3, 2]):

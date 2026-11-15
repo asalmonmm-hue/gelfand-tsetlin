@@ -116,11 +116,12 @@ assert coefficient(2, 3, source, source) == 0
 ```
 
 The standalone C kernel borrows packed integer rows and uses constant stack
-space with no heap allocation. Python validates and packs the input and boxes
-the output. The kernel uses fixed-width arithmetic and raises `OverflowError`
-through the Python interface if a normalized entry or a coefficient calculation
-exceeds its range. The real results are exact. For a nonreal common shift, a
-diagonal result is returned as a Python `complex`, with its usual precision.
+space with no heap allocation. The Python interface retries adjacent
+coefficients with arbitrary-precision arithmetic when packing or an
+intermediate product overflows. It raises `OverflowError` if the reduced
+numerator or denominator exceeds signed 64-bit range. Diagonal coefficients
+use exact row sums. For a nonreal common shift, a diagonal result is returned
+as a Python `complex`, with its usual precision.
 
 ## Contravariant form
 
@@ -128,8 +129,8 @@ diagonal result is returned as a Python `complex`, with its usual precision.
 basis vectors with the same highest weight. Distinct patterns pair to zero.
 For a matching pair, each quotient of factorials reduces to a product of
 consecutive integers. The C kernel multiplies those factors without allocating
-or computing factorials. It returns an exact integer and reports overflow above
-`INT64_MAX`.
+or computing factorials. Matching pairs require normalized offsets and a
+norm that fit in signed 64-bit integers.
 
 ```python
 from gelfand_tsetlin import inner_product
@@ -159,7 +160,8 @@ assert (e12 ** 2).terms == {((1, 2), (1, 2)): 1}
 
 The C multiplication kernel joins already ordered word pairs directly and
 normal-orders other products using the matrix-unit commutators. It combines
-equal terms. Symbolic products allocate storage for
+equal terms and uses the binomial formula to commute a repeated diagonal
+generator past a root generator. Symbolic products allocate storage for
 their terms and can grow as commutators expand.
 
 ### Coproduct and quadratic Casimir
@@ -364,9 +366,9 @@ A lower level selects the corresponding upper-left subalgebra.
 `apply_enveloping(element, source)` applies the element to one GT vector,
 acting with the rightmost factor first. It returns a dictionary of target
 patterns and nonzero coefficients. It uses the existing C coefficients for
-adjacent generators and composes sparse commutators for other matrix units.
-The action accepts real common shifts and uses exact rational coefficients
-within the range of the fixed-width coefficient kernel.
+adjacent generators with the same exact fallback as `coefficient`, reuses
+row sums for diagonal generators, and composes sparse commutators for other
+matrix units. The action accepts real common shifts.
 
 ```python
 from gelfand_tsetlin import RowArray, apply_enveloping, lowering_operator

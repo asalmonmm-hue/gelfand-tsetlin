@@ -1,4 +1,5 @@
 from fractions import Fraction
+from math import comb
 from unittest import TestCase
 
 from gelfand_tsetlin import EnvelopingElement
@@ -24,6 +25,38 @@ class EnvelopingTests(TestCase):
         self.assertEqual(e12 * e23 - e23 * e12, matrix_unit(1, 3))
         self.assertEqual(e12 * e31 - e31 * e12, -matrix_unit(3, 2))
         self.assertEqual(e12 * matrix_unit(3, 3), matrix_unit(3, 3) * e12)
+
+    def test_repeated_cartan_run_has_binomial_coefficients(self):
+        exponent = 96
+        for cartan, root, on_left, sign in (
+            ((2, 2), (2, 1), True, 1),
+            ((2, 2), (1, 2), True, -1),
+            ((1, 1), (2, 1), False, 1),
+            ((2, 2), (2, 3), False, -1),
+        ):
+            with self.subTest(cartan=cartan, root=root, on_left=on_left):
+                run = matrix_unit(*cartan) ** exponent
+                unit = matrix_unit(*root)
+                actual = run * unit if on_left else unit * run
+                expected = {
+                    ((root,) + (cartan,) * degree if on_left else (cartan,) * degree + (root,)):
+                    comb(exponent, degree) * sign ** (exponent - degree)
+                    for degree in range(exponent + 1)
+                }
+                self.assertEqual(dict(actual.terms), expected)
+
+    def test_constructor_collects_cartan_run_corrections_with_other_terms(self):
+        prefix, cartan, root, suffix = (1, 1), (2, 2), (1, 2), (3, 3)
+        coefficients = Fraction(2, 3)
+        element = EnvelopingElement(3, {
+            (prefix,) + (cartan,) * 3 + (root, suffix): coefficients,
+            (prefix, root, suffix): coefficients,
+        })
+        self.assertEqual(dict(element.terms), {
+            (prefix, root) + (cartan,) * degree + (suffix,):
+            coefficients * comb(3, degree) * (-1) ** (3 - degree)
+            for degree in range(1, 4)
+        })
 
     def test_constructor_normal_orders_words_and_collects_equal_terms(self):
         raw = {

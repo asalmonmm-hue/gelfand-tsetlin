@@ -8,6 +8,7 @@ from operator import index
 from typing import Iterable
 
 from ._gt import check_integer_rows, check_rows, coefficient_i64, inner_product_i64
+from ._exact_coefficients import adjacent_coefficient_exact
 from ._enveloping import EnvelopingElement
 from ._classical import classical_branching_generator, classical_matrix_unit
 from ._classical_interpolation import classical_interpolation_node, classical_interpolation_polynomial
@@ -108,7 +109,7 @@ def is_gt_pattern(array: RowArray | Iterable[Iterable[object]]) -> bool:
     return check_rows(_pattern_coordinates(array)) if result is None else result
 
 
-def _normalized_pair(source, target):
+def _validated_pair(source, target):
     source_rows = _pattern_coordinates(source)
     target_rows = source_rows if source is target else _pattern_coordinates(target)
     if not check_rows(source_rows) or (source_rows is not target_rows and not check_rows(target_rows)):
@@ -116,12 +117,11 @@ def _normalized_pair(source, target):
     if source_rows[0] != target_rows[0]:
         raise ValueError("patterns must have the same highest weight")
 
-    origin_real, origin_imag = source_rows[0][-1]
-    source_offsets = tuple(int(real - origin_real) for row in source_rows for real, _ in row)
-    target_offsets = source_offsets if source_rows is target_rows else tuple(
-        int(real - origin_real) for row in target_rows for real, _ in row
-    )
-    return len(source_rows), origin_real, origin_imag, source_offsets, target_offsets
+    return source_rows, target_rows
+
+
+def _integer_offsets(rows, origin):
+    return tuple(int(real - origin) for row in rows for real, _ in row)
 
 
 def coefficient(i, j, source, target):
@@ -133,14 +133,28 @@ def coefficient(i, j, source, target):
     nonreal shift is returned as a Python complex value.
     """
     i, j = index(i), index(j)
-    rank, origin_real, origin_imag, source, target = _normalized_pair(source, target)
+    source, target = _validated_pair(source, target)
+    rank = len(source)
     if not (1 <= i <= rank and 1 <= j <= rank and abs(i - j) <= 1):
         raise ValueError("indices must be diagonal or adjacent and within the pattern rank")
 
-    numerator, denominator = coefficient_i64(rank, i, j, source, target)
-    if i == j and source == target:
-        value = numerator + origin_real
-        return complex(value, origin_imag) if origin_imag else value
+    origin_real, origin_imag = source[0][-1]
+    if i == j:
+        if source != target:
+            return 0
+        row = rank - i
+        value = sum(real for real, _ in source[row])
+        if i > 1:
+            value -= sum(real for real, _ in source[row + 1])
+        return complex(value, origin_imag) if origin_imag else int(value - origin_real) + origin_real
+    if source == target:
+        return 0
+    source = _integer_offsets(source, origin_real)
+    target = _integer_offsets(target, origin_real)
+    try:
+        numerator, denominator = coefficient_i64(rank, i, j, source, target)
+    except OverflowError:
+        return adjacent_coefficient_exact(rank, i, j, source, target)
     return numerator if denominator == 1 else Fraction(numerator, denominator)
 
 
@@ -151,8 +165,11 @@ def inner_product(left, right):
     for distinct patterns. Both inputs must be valid and have the same
     highest weight. The pairing is independent of the common shift.
     """
-    rank, _, _, left, right = _normalized_pair(left, right)
-    numerator, _ = inner_product_i64(rank, left, right)
+    left, right = _validated_pair(left, right)
+    if left != right:
+        return 0
+    offsets = _integer_offsets(left, left[0][-1][0])
+    numerator, _ = inner_product_i64(len(left), offsets, offsets)
     return numerator
 
 
