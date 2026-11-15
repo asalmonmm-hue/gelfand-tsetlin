@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 from fractions import Fraction
 from numbers import Rational
+from operator import index
 from typing import Iterable
 
-from ._gt import check_rows
+from ._gt import check_rows, coefficient_i64
 
 
-__all__ = ["RowArray", "is_gt_pattern"]
+__all__ = ["RowArray", "coefficient", "is_gt_pattern"]
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -37,18 +38,57 @@ def _exact_coordinates(entry: object) -> tuple[int | Fraction, int | Fraction] |
     return None
 
 
+def _pattern_coordinates(array):
+    if not isinstance(array, RowArray):
+        try:
+            array = RowArray(array)
+        except TypeError:
+            return None
+    return tuple(
+        tuple(_exact_coordinates(entry) for entry in row) for row in array.rows
+    )
+
+
 def is_gt_pattern(array: RowArray | Iterable[Iterable[object]]) -> bool:
     """Test for row lengths N, ..., 1 and nonnegative integral interlacing gaps.
 
     N must be positive. The entries can share a nonintegral real or complex
     shift. Float and complex components are interpreted as exact binary values.
     """
-    if not isinstance(array, RowArray):
-        try:
-            array = RowArray(array)
-        except TypeError:
-            return False
-    coordinates = tuple(
-        tuple(_exact_coordinates(entry) for entry in row) for row in array.rows
+    return check_rows(_pattern_coordinates(array))
+
+
+def _normalized_pair(source, target):
+    source_rows = _pattern_coordinates(source)
+    target_rows = source_rows if source is target else _pattern_coordinates(target)
+    if not check_rows(source_rows) or (source_rows is not target_rows and not check_rows(target_rows)):
+        raise ValueError("both arguments must be valid Gelfand–Tsetlin patterns")
+    if source_rows[0] != target_rows[0]:
+        raise ValueError("patterns must have the same highest weight")
+
+    origin_real, origin_imag = source_rows[0][-1]
+    source_offsets = tuple(int(real - origin_real) for row in source_rows for real, _ in row)
+    target_offsets = source_offsets if source_rows is target_rows else tuple(
+        int(real - origin_real) for row in target_rows for real, _ in row
     )
-    return check_rows(coordinates)
+    return len(source_rows), origin_real, origin_imag, source_offsets, target_offsets
+
+
+def coefficient(i, j, source, target):
+    """Return the coefficient of target in E[i,j] applied to source.
+
+    Indices are one-based. The diagonal and adjacent formulas are in
+    Molev's Theorem 2.3. A missing transition between valid patterns is zero.
+    Real results are exact integers or fractions. A diagonal result with a
+    nonreal shift is returned as a Python complex value.
+    """
+    i, j = index(i), index(j)
+    rank, origin_real, origin_imag, source, target = _normalized_pair(source, target)
+    if not (1 <= i <= rank and 1 <= j <= rank and abs(i - j) <= 1):
+        raise ValueError("indices must be diagonal or adjacent and within the pattern rank")
+
+    numerator, denominator = coefficient_i64(rank, i, j, source, target)
+    if i == j and source == target:
+        value = numerator + origin_real
+        return complex(value, origin_imag) if origin_imag else value
+    return numerator if denominator == 1 else Fraction(numerator, denominator)

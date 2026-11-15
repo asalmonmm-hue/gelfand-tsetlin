@@ -1,6 +1,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "gt_coefficient.h"
+
 /* Results use the Python C API convention: 1 true, 0 false, -1 error. */
 static int
 is_nonnegative_integer_gap(PyObject *upper, PyObject *lower)
@@ -76,8 +78,81 @@ check_rows(PyObject *Py_UNUSED(self), PyObject *rows)
     Py_RETURN_TRUE;
 }
 
+/* This bridge owns the input buffers. The kernels only borrow them. */
+static int64_t *
+pack_pair(Py_ssize_t rank, PyObject *source, PyObject *target)
+{
+    size_t count = (size_t)PyTuple_GET_SIZE(source);
+    size_t n = (size_t)rank;
+    size_t a = n % 2 ? n : n / 2;
+    size_t b = n % 2 ? n / 2 + 1 : n + 1;
+    if (rank <= 0 || b > count / a || a * b != count ||
+        count != (size_t)PyTuple_GET_SIZE(target) ||
+        count > (size_t)PY_SSIZE_T_MAX / (2 * sizeof(int64_t))) {
+        PyErr_SetString(PyExc_ValueError, "invalid native pattern buffer size");
+        return NULL;
+    }
+
+    int64_t *packed = PyMem_New(int64_t, 2 * count);
+    if (packed == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    PyObject *patterns[] = {source, target};
+    for (size_t side = 0; side < 2; side++) {
+        for (size_t k = 0; k < count; k++) {
+            long long value = PyLong_AsLongLong(PyTuple_GET_ITEM(patterns[side], k));
+            if (value < 0 || value > INT64_MAX) {
+                PyMem_Free(packed);
+                if (!PyErr_Occurred()) {
+                    PyErr_SetString(PyExc_OverflowError, "pattern offset outside int64 range");
+                }
+                return NULL;
+            }
+            packed[side * count + k] = (int64_t)value;
+        }
+    }
+    return packed;
+}
+
+static PyObject *
+fraction_result(enum gt_coefficient_status status, int64_t numerator, int64_t denominator)
+{
+    if (status == GT_COEFFICIENT_OVERFLOW) {
+        PyErr_SetString(PyExc_OverflowError, "GT arithmetic exceeded its fixed-width range");
+        return NULL;
+    }
+    if (status != GT_COEFFICIENT_OK) {
+        PyErr_SetString(PyExc_ValueError, "invalid GT kernel arguments");
+        return NULL;
+    }
+    return Py_BuildValue("(LL)", (long long)numerator, (long long)denominator);
+}
+
+static PyObject *
+coefficient_i64(PyObject *Py_UNUSED(self), PyObject *args)
+{
+    Py_ssize_t rank, i, j;
+    PyObject *source, *target;
+    if (!PyArg_ParseTuple(args, "nnnO!O!:coefficient_i64", &rank, &i, &j,
+                          &PyTuple_Type, &source, &PyTuple_Type, &target)) {
+        return NULL;
+    }
+    int64_t *packed = pack_pair(rank, source, target);
+    if (packed == NULL) {
+        return NULL;
+    }
+    int64_t numerator = 0, denominator = 1;
+    enum gt_coefficient_status status = gt_coefficient(
+        (size_t)rank, (size_t)i, (size_t)j, packed, packed + PyTuple_GET_SIZE(source),
+        &numerator, &denominator);
+    PyMem_Free(packed);
+    return fraction_result(status, numerator, denominator);
+}
+
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
+    {"coefficient_i64", coefficient_i64, METH_VARARGS, "Evaluate a native GT coefficient."},
     {NULL, NULL, 0, NULL}
 };
 
