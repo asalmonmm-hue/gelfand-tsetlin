@@ -1,6 +1,6 @@
 # Repository guidance
 
-- Follow Molev’s *Gelfand–Tsetlin bases for classical Lie algebras*, §2,
+- Follow Molev’s *Gelfand–Tsetlin bases for classical Lie algebras*, §§2–3,
   for pattern indexing, operator order, and normalization.
 - Keep computational kernels in C and the public interface in Python. Keep
   fixed-width coefficient kernels allocation-free. Preserve exact arithmetic

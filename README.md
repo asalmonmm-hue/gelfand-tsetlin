@@ -1,8 +1,10 @@
-# Gelfand–Tsetlin patterns for `gl_N`
+# Gelfand–Tsetlin patterns for classical types
 
-A Python interface with C kernels for working through the Gelfand–Tsetlin basis in [Molev, §2](https://arxiv.org/abs/math/0211289). The package covers patterns, matrix coefficients, the contravariant form, and sparse enveloping algebra actions. It also provides coproducts, the quadratic Casimir, and tensor decompositions with the standard module and its dual.
+A Python library with C kernels for Gelfand–Tsetlin patterns and representation-theoretic computations in the classical Lie algebras, following Molev’s [§§2–3](https://arxiv.org/abs/math/0211289).
 
-For Molev’s §3, it provides matrix and branching generators in types B, C, and D, their interpolation polynomials, type B pattern validation and basis factors, and the Yangian evaluation-module string criterion.
+- **Type A (`gl_N`)** has pattern validation, matrix coefficients, the contravariant form, and sparse enveloping algebra actions. It also covers quantum minors, coproducts, the quadratic Casimir, and tensor products with the standard module and its dual.
+- **Type B** has pattern validation and ordered basis factors.
+- **Types B, C, and D** have exact matrix generators, normalized branching operators, and interpolation polynomials. The library also tests the string criterion for irreducibility of Yangian evaluation-module tensor products.
 
 See [Capabilities](CAPABILITIES.md) for the tool comparison, API examples, indexing conventions, and arithmetic limits.
 

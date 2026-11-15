@@ -1,4 +1,4 @@
-"""Row arrays and interlacing for the finite-dimensional gl_N patterns."""
+"""Gelfand–Tsetlin patterns and exact operators for classical types."""
 
 from dataclasses import dataclass
 from decimal import Decimal
