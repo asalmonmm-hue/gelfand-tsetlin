@@ -9,6 +9,7 @@ from typing import Iterable
 
 from ._gt import check_integer_rows, check_rows, coefficient_i64, inner_product_i64
 from ._enveloping import EnvelopingElement
+from ._minors import quantum_minor
 from ._molev import lowering_operator, raising_operator
 
 
@@ -16,6 +17,7 @@ __all__ = [
     "EnvelopingElement",
     "RowArray",
     "apply_enveloping",
+    "apply_dual_standard_projector",
     "apply_highest_lowering",
     "apply_highest_raising",
     "coefficient",
@@ -23,6 +25,7 @@ __all__ = [
     "is_gt_pattern",
     "lowering_operator",
     "quadratic_casimir_eigenvalue",
+    "quantum_minor",
     "raising_operator",
     "tensor_with_standard",
     "weight",
@@ -127,5 +130,6 @@ def inner_product(left, right):
 # These modules use the pattern and coefficient helpers defined above.
 from ._action import apply_enveloping
 from ._highest import apply_highest_lowering, apply_highest_raising
+from ._projectors import apply_dual_standard_projector
 from ._tensor import quadratic_casimir_eigenvalue, tensor_with_standard
 from ._weight import weight
