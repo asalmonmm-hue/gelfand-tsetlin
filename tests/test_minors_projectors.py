@@ -5,12 +5,17 @@ from unittest import TestCase
 from gelfand_tsetlin import (
     EnvelopingElement,
     RowArray,
+    a_polynomial,
     apply_dual_standard_projector,
     apply_enveloping,
+    b_polynomial,
+    c_polynomial,
     inner_product,
     lowering_operator,
     quantum_minor,
     raising_operator,
+    tau_lowering,
+    tau_raising,
 )
 
 
@@ -55,8 +60,8 @@ class QuantumMinorTests(TestCase):
 
     def test_rank_four_operators_modulo_the_highest_vector_ideal(self):
         e = matrix_units(4)
-        tau41 = quantum_minor(4, (2, 3, 4), (1, 2, 3), -e[1, 1])
-        tau34 = quantum_minor(4, (1, 2, 3), (1, 2, 4), 2 - e[3, 3])
+        tau41 = tau_lowering(4, 1, -e[1, 1])
+        tau34 = tau_raising(4, 3, 2 - e[3, 3])
         z41 = lowering_operator(4, 1)
         z34 = raising_operator(4, 3)
         self.assertEqual(
@@ -91,6 +96,14 @@ class QuantumMinorTests(TestCase):
         for coefficient, generator in product(coefficients, matrix_units(3).values()):
             self.assertEqual(coefficient * generator, generator * coefficient)
 
+    def test_matrix_unit_commutator_replaces_rows_and_columns(self):
+        e32 = EnvelopingElement.matrix_unit(3, 3, 2)
+        value = Fraction(2, 3)
+        minor = quantum_minor(3, (1, 2), (1, 3), value)
+        replaced_row = quantum_minor(3, (1, 3), (1, 3), value)
+        replaced_column = quantum_minor(3, (1, 2), (1, 2), value)
+        self.assertEqual(e32 * minor - minor * e32, replaced_row - replaced_column)
+
     def test_validates_indices_and_parameter(self):
         with self.assertRaises(ValueError):
             quantum_minor(3, (1, 2), (1,))
@@ -102,6 +115,73 @@ class QuantumMinorTests(TestCase):
             quantum_minor(3, (1,), (1,), EnvelopingElement.scalar(2, 1))
         with self.assertRaises(TypeError):
             quantum_minor(3, (1,), (1,), 0.5)
+
+
+class ABCPolynomialTests(TestCase):
+    def test_low_degree_coefficients_and_evaluation(self):
+        e = matrix_units(3)
+        one = EnvelopingElement.scalar(3, 1)
+        self.assertEqual(a_polynomial(3, 1), (e[1, 1], one))
+        self.assertEqual(b_polynomial(3, 1), (e[1, 2],))
+        self.assertEqual(c_polynomial(3, 1), (e[2, 1],))
+
+        b_constant = e[1, 1] * e[2, 3] - e[2, 1] * e[1, 3]
+        c_constant = e[1, 1] * e[3, 2] - e[3, 1] * e[1, 2]
+        self.assertEqual(b_polynomial(3, 2), (b_constant, e[2, 3]))
+        self.assertEqual(c_polynomial(3, 2), (c_constant, e[3, 2]))
+        self.assertEqual(b_polynomial(3, 2, e[3, 3]), b_constant + e[2, 3] * e[3, 3])
+        self.assertEqual(a_polynomial(3, 3), quantum_minor(3, (1, 2, 3), (1, 2, 3)))
+
+    def test_theorem_220_at_a_rank_three_pattern(self):
+        source = RowArray(((3, 1, 0), (2, 1), (1,)))
+        raised = RowArray(((3, 1, 0), (3, 1), (1,)))
+        lowered = RowArray(((3, 1, 0), (1, 1), (1,)))
+        value = Fraction(2, 3)
+        self.assertEqual(apply_enveloping(a_polynomial(3, 2, value), source), {
+            source: (value + 2) * value,
+        })
+        self.assertEqual(apply_enveloping(b_polynomial(3, 2, -2), source), {raised: -8})
+        self.assertEqual(apply_enveloping(c_polynomial(3, 2, -2), source), {lowered: -1})
+
+    def test_level_bounds(self):
+        for constructor, rank, level in (
+            (a_polynomial, 3, 0), (a_polynomial, 3, 4),
+            (b_polynomial, 3, 0), (b_polynomial, 3, 3),
+            (c_polynomial, 3, 0), (c_polynomial, 3, 3),
+        ):
+            with self.subTest(constructor=constructor.__name__, rank=rank, level=level):
+                with self.assertRaises(ValueError):
+                    constructor(rank, level)
+
+
+class TauPolynomialTests(TestCase):
+    def test_rank_three_coefficients_and_exact_evaluation(self):
+        e = matrix_units(3)
+        tau31 = e[2, 1] * e[3, 2] - e[3, 1] * (e[2, 2] - 1), -e[3, 1]
+        tau23 = -e[2, 3] * e[1, 1] + e[2, 1] * e[1, 3], -e[2, 3]
+        self.assertEqual(tau_lowering(3, 1), tau31)
+        self.assertEqual(tau_raising(3, 2), tau23)
+        self.assertEqual(tau_lowering(3, 2), (e[3, 2],))
+        self.assertEqual(tau_raising(3, 1), (e[1, 3],))
+
+        value = Fraction(2, 3)
+        self.assertEqual(tau_lowering(3, 1, value), tau31[0] + tau31[1] * value)
+        self.assertEqual(tau_raising(3, 2, value), tau23[0] + tau23[1] * value)
+        parameter = e[3, 3]
+        self.assertNotEqual(tau23[1] * parameter, parameter * tau23[1])
+        self.assertEqual(tau_raising(3, 2, parameter), tau23[0] + tau23[1] * parameter)
+
+    def test_embedding_and_index_validation(self):
+        e = matrix_units(5)
+        self.assertEqual(tau_lowering(5, 1, -e[1, 1], level=3), lowering_operator(5, 1, level=3))
+        self.assertEqual(tau_raising(5, 2, 1 - e[2, 2], level=3), raising_operator(5, 2, level=3))
+        for constructor in (tau_lowering, tau_raising):
+            for rank, i, level in ((1, 1, None), (3, 0, None), (5, 3, 3), (5, 1, 6)):
+                with self.subTest(constructor=constructor.__name__, rank=rank, i=i, level=level):
+                    with self.assertRaises(ValueError):
+                        constructor(rank, i, level=level)
+            with self.assertRaises(ValueError):
+                constructor(5, 1, EnvelopingElement.scalar(3, 1), level=3)
 
 
 def add_scaled(result, terms, scale):

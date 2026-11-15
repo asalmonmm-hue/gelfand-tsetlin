@@ -79,3 +79,78 @@ def quantum_minor(rank, rows, columns, u=None):
     for coefficient in reversed(coefficients[:-1]):
         value = value * u + coefficient
     return value
+
+
+def _tau_indices(rank, i, level):
+    rank, i = _checked_rank(rank), index(i)
+    level = rank if level is None else index(level)
+    if not 1 <= i < level <= rank:
+        raise ValueError("operator indices must satisfy 1 <= i < level <= rank")
+    return rank, i, level
+
+
+def tau_lowering(rank, i, u=None, *, level=None):
+    """Return Molev's tau[level, i](u) in the upper-left subalgebra.
+
+    Indices are one-based and level defaults to rank. Omit u for ascending
+    PBW coefficients, or pass an exact scalar or a rank-matched element as
+    in quantum_minor.
+    """
+    rank, i, level = _tau_indices(rank, i, level)
+    return quantum_minor(rank, range(i + 1, level + 1), range(i, level), u)
+
+
+def tau_raising(rank, i, u=None, *, level=None):
+    """Return Molev's tau[i, level](u) in the upper-left subalgebra.
+
+    Indices are one-based and level defaults to rank. Omit u for ascending
+    PBW coefficients, or pass an exact scalar or a rank-matched element as
+    in quantum_minor.
+    """
+    rank, i, level = _tau_indices(rank, i, level)
+    minor = quantum_minor(rank, range(1, i + 1), (*range(1, i), level), u)
+    if i % 2:
+        return minor
+    if u is None:
+        return tuple(-coefficient for coefficient in minor)
+    return -minor
+
+
+def a_polynomial(rank, m, u=None):
+    """Return Molev's A_m(u), the upper-left Capelli determinant.
+
+    The level m satisfies 1 <= m <= rank. The return and evaluation
+    conventions are those of quantum_minor.
+    """
+    rank, m = _checked_rank(rank), index(m)
+    if not 1 <= m <= rank:
+        raise ValueError("A polynomial level must satisfy 1 <= m <= rank")
+    indices = range(1, m + 1)
+    return quantum_minor(rank, indices, indices, u)
+
+
+def _adjacent_minor_indices(rank, m):
+    rank, m = _checked_rank(rank), index(m)
+    if not 1 <= m < rank:
+        raise ValueError("B and C polynomial levels must satisfy 1 <= m < rank")
+    return rank, range(1, m + 1), (*range(1, m), m + 1)
+
+
+def b_polynomial(rank, m, u=None):
+    """Return Molev's B_m(u), with column m replaced by m+1.
+
+    The level m satisfies 1 <= m < rank. The return and evaluation
+    conventions are those of quantum_minor.
+    """
+    rank, principal, shifted = _adjacent_minor_indices(rank, m)
+    return quantum_minor(rank, principal, shifted, u)
+
+
+def c_polynomial(rank, m, u=None):
+    """Return Molev's C_m(u), with row m replaced by m+1.
+
+    The level m satisfies 1 <= m < rank. The return and evaluation
+    conventions are those of quantum_minor.
+    """
+    rank, principal, shifted = _adjacent_minor_indices(rank, m)
+    return quantum_minor(rank, shifted, principal, u)

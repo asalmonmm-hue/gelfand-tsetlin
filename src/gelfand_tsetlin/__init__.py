@@ -9,17 +9,27 @@ from typing import Iterable
 
 from ._gt import check_integer_rows, check_rows, coefficient_i64, inner_product_i64
 from ._enveloping import EnvelopingElement
-from ._minors import quantum_minor
+from ._minors import (
+    a_polynomial,
+    b_polynomial,
+    c_polynomial,
+    quantum_minor,
+    tau_lowering,
+    tau_raising,
+)
 from ._molev import lowering_operator, raising_operator
 
 
 __all__ = [
     "EnvelopingElement",
     "RowArray",
+    "a_polynomial",
     "apply_enveloping",
     "apply_dual_standard_projector",
     "apply_highest_lowering",
     "apply_highest_raising",
+    "b_polynomial",
+    "c_polynomial",
     "coefficient",
     "inner_product",
     "is_gt_pattern",
@@ -27,6 +37,8 @@ __all__ = [
     "quadratic_casimir_eigenvalue",
     "quantum_minor",
     "raising_operator",
+    "tau_lowering",
+    "tau_raising",
     "tensor_with_standard",
     "weight",
 ]
