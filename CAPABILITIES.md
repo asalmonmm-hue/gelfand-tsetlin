@@ -32,6 +32,8 @@ API was not established in this comparison.
 | Classical interpolation polynomials | $Z_{n,-n}(u)$ at exact Cartan weights, with direct node operators | Unverified | Unverified |
 | Type B patterns and basis construction | Validation and ordered factors of Theorem 3.3 | Unverified | Unverified |
 | Yangian evaluation-module irreducibility | Exact endpoint tests for the general position of strings | Unverified | Unverified |
+| Alternating orthogonal pattern validation | Exact validation through $\mathfrak o_N\supset\cdots\supset\mathfrak o_2$ | Unverified | Unverified |
+| One-step orthogonal branching | Lazy enumeration of interlacing highest weights | Character restriction using the `extended` and `symmetric` branching rules | Unverified |
 
 Exact checks against passageMath agreed on 59,808 validation decisions,
 12,045 weight coordinates, and 375 rational PBW products. Generator actions
@@ -44,6 +46,11 @@ conversion to Dynkin coordinates.
 The classical matrix-generator comparison matched 226 generator matrices,
 9,970 ordered Lie brackets, and six basis spans against passageMath 10.8.13
 over $\mathbf{Q}$ in types $B_2,B_3,C_2,C_3,D_3,D_4$ after permuting indices.
+Orthogonal branching matched 675 restricted-character coefficients for 49
+highest weights in dimensions 3–9, including spin weights and both signs
+of the last even-row coordinate. The comparison used passageMath 10.8.13’s
+Freudenthal multiplicity kernel and branching coordinate maps, with
+one-dimensional torus characters at the terminal $\mathfrak o_2$ step.
 
 [SageMath pattern API](https://doc.sagemath.org/html/en/reference/combinat/sage/combinat/gelfand_tsetlin_patterns.html) ·
 [SageMath PBW API](https://doc.sagemath.org/html/en/reference/algebras/sage/algebras/lie_algebras/poincare_birkhoff_witt.html) ·
@@ -505,4 +512,28 @@ from gelfand_tsetlin import yangian_strings_in_general_position, yangian_tensor_
 assert yangian_strings_in_general_position((3, 0), (2, 1))
 assert not yangian_strings_in_general_position((2, 0), (4, 2))
 assert yangian_tensor_is_irreducible([(2, 0), (5, 3)])
+```
+
+## Alternating orthogonal chain
+
+`is_orthogonal_gt_pattern(pattern)` checks Molev’s §4 arrays. Supply one
+row for each dimension from $N$ down to $2$, in that order. The row for
+$\mathfrak o_d$ has $\lfloor d/2\rfloor$ entries. All entries are exact
+integers or all are half-integers with fractional part $1/2$. The last
+coordinate is signed on even-dimensional rows.
+
+`orthogonal_branching(dimension, highest_weight)` yields the admissible
+$\mathfrak o_{N-1}$ highest weights for an integer $N\ge3$ in decreasing
+lexicographic order. Each occurs once. For $N=2n+1$ the last lower-row
+coordinate lies between $-\lambda_n$ and $\lambda_n$. For $N=2n$ the
+last lower-row coordinate lies between $|\lambda_n|$ and $\lambda_{n-1}$.
+[Molev, equations (4.4) and (4.7)](https://arxiv.org/abs/math/0211289).
+
+```python
+from fractions import Fraction
+from gelfand_tsetlin import is_orthogonal_gt_pattern, orthogonal_branching
+
+half = Fraction(1, 2)
+assert list(orthogonal_branching(5, (half, half))) == [(half, half), (half, -half)]
+assert is_orthogonal_gt_pattern(((half, half), (half, -half), (half,), (-half,)))
 ```

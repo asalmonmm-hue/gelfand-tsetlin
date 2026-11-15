@@ -20,6 +20,7 @@ from ._minors import (
     tau_raising,
 )
 from ._molev import lowering_operator, raising_operator
+from ._orthogonal import is_orthogonal_gt_pattern, orthogonal_branching
 from ._type_b import is_type_b_gt_pattern, type_b_basis_factors
 
 
@@ -41,10 +42,12 @@ __all__ = [
     "gt_eigenvalues",
     "inner_product",
     "is_gt_pattern",
+    "is_orthogonal_gt_pattern",
     "is_type_b_gt_pattern",
     "kappa_factors",
     "kappa_scale",
     "lowering_operator",
+    "orthogonal_branching",
     "quadratic_casimir_eigenvalue",
     "quantum_minor",
     "raising_operator",
