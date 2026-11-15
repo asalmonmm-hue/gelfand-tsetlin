@@ -1,6 +1,6 @@
 # Gelfand–Tsetlin patterns for `gl_N`
 
-A Python interface with C kernels for working through the Gelfand–Tsetlin basis in [Molev, §2](https://arxiv.org/abs/math/0211289). The package covers interlacing, weights, matrix coefficients, the contravariant form, and sparse actions of enveloping algebra elements.
+A Python interface with C kernels for working through the Gelfand–Tsetlin basis in [Molev, §2](https://arxiv.org/abs/math/0211289). The package covers patterns, matrix coefficients, the contravariant form, and sparse enveloping algebra actions. It also provides coproducts, the quadratic Casimir, and tensor decompositions with the standard module and its dual.
 
 See [Capabilities](CAPABILITIES.md) for the tool comparison, API examples, indexing conventions, and arithmetic limits.
 

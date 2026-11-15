@@ -268,6 +268,186 @@ multiply_ordered_pbw(PyObject *module, PyObject *args)
     return multiply_pbw_impl(module, args, 1);
 }
 
+typedef struct {
+    PyObject *generator; /* Borrowed from the input word. */
+    Py_ssize_t length;
+    Py_ssize_t left_count;
+    PyObject *binomial;
+} coproduct_run;
+
+/* Advance the exponent splits as a mixed-radix counter. */
+static int
+advance_split(coproduct_run *runs, Py_ssize_t count, Py_ssize_t *left_length,
+              PyObject *one)
+{
+    for (Py_ssize_t i = count; i > 0; i--) {
+        coproduct_run *run = &runs[i - 1];
+        Py_ssize_t k = run->left_count;
+        if (k < run->length) {
+            /* binom(length, k+1) = binom(length, k) * (length-k) / (k+1). */
+            PyObject *numerator = PyLong_FromSsize_t(run->length - k);
+            PyObject *denominator = PyLong_FromSsize_t(k + 1);
+            PyObject *product = NULL;
+            PyObject *next = NULL;
+            if (numerator != NULL && denominator != NULL) {
+                product = PyNumber_Multiply(run->binomial, numerator);
+                if (product != NULL) {
+                    next = PyNumber_FloorDivide(product, denominator);
+                }
+            }
+            Py_XDECREF(numerator);
+            Py_XDECREF(denominator);
+            Py_XDECREF(product);
+            if (next == NULL) {
+                return -1;
+            }
+            Py_SETREF(run->binomial, next);
+            run->left_count++;
+            (*left_length)++;
+            return 1;
+        }
+        *left_length -= k;
+        run->left_count = 0;
+        Py_SETREF(run->binomial, Py_NewRef(one));
+    }
+    return 0;
+}
+
+static int
+emit_split(PyObject *result, PyObject *coefficient, const coproduct_run *runs,
+           Py_ssize_t count, Py_ssize_t left_length, Py_ssize_t right_length)
+{
+    PyObject *left = PyTuple_New(left_length);
+    if (left == NULL) {
+        return -1;
+    }
+    PyObject *right = PyTuple_New(right_length);
+    if (right == NULL) {
+        Py_DECREF(left);
+        return -1;
+    }
+    PyObject *value = Py_NewRef(coefficient);
+    Py_ssize_t left_position = 0, right_position = 0;
+    for (Py_ssize_t i = 0; i < count && value != NULL; i++) {
+        const coproduct_run *run = &runs[i];
+        Py_ssize_t k = run->left_count;
+        for (Py_ssize_t j = 0; j < k; j++) {
+            PyTuple_SET_ITEM(left, left_position++, Py_NewRef(run->generator));
+        }
+        for (Py_ssize_t j = k; j < run->length; j++) {
+            PyTuple_SET_ITEM(right, right_position++, Py_NewRef(run->generator));
+        }
+        if (k != 0 && k != run->length) {
+            PyObject *scaled = PyNumber_Multiply(value, run->binomial);
+            Py_SETREF(value, scaled);
+        }
+    }
+    PyObject *key = value == NULL ? NULL : PyTuple_Pack(2, left, right);
+    /* Joining the two exponent counts recovers the unique input monomial. */
+    int status = key == NULL ? -1 : PyDict_SetItem(result, key, value);
+    Py_XDECREF(key);
+    Py_XDECREF(value);
+    Py_DECREF(left);
+    Py_DECREF(right);
+    return status;
+}
+
+static int
+coproduct_term(PyObject *result, PyObject *word, PyObject *coefficient,
+               PyObject *one)
+{
+    int nonzero = PyObject_IsTrue(coefficient);
+    if (nonzero <= 0) {
+        return nonzero;
+    }
+    Py_ssize_t length = PyTuple_GET_SIZE(word);
+    if (length == 0) {
+        PyObject *key = PyTuple_Pack(2, word, word);
+        if (key == NULL) {
+            return -1;
+        }
+        int status = PyDict_SetItem(result, key, coefficient);
+        Py_DECREF(key);
+        return status;
+    }
+
+    /* Already ordered by generator ID, so every repeated generator is one run. */
+    Py_ssize_t count = 0, previous = -1;
+    for (Py_ssize_t i = 0; i < length; i++) {
+        Py_ssize_t id = PyLong_AsSsize_t(PyTuple_GET_ITEM(word, i));
+        if (id != previous) {
+            count++;
+            previous = id;
+        }
+    }
+    coproduct_run *runs = PyMem_New(coproduct_run, count);
+    if (runs == NULL) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    Py_ssize_t run_index = -1;
+    previous = -1;
+    for (Py_ssize_t i = 0; i < length; i++) {
+        PyObject *generator = PyTuple_GET_ITEM(word, i);
+        Py_ssize_t id = PyLong_AsSsize_t(generator);
+        if (id != previous) {
+            runs[++run_index] = (coproduct_run){generator, 0, 0, Py_NewRef(one)};
+            previous = id;
+        }
+        runs[run_index].length++;
+    }
+
+    Py_ssize_t left_length = 0;
+    int status;
+    do {
+        status = emit_split(result, coefficient, runs, count, left_length,
+                            length - left_length);
+        if (status == 0) {
+            status = advance_split(runs, count, &left_length, one);
+        }
+    } while (status > 0);
+    for (Py_ssize_t i = 0; i < count; i++) {
+        Py_DECREF(runs[i].binomial);
+    }
+    PyMem_Free(runs);
+    return status;
+}
+
+static PyObject *
+coproduct_pbw(PyObject *module, PyObject *args)
+{
+    Py_ssize_t rank;
+    PyObject *terms;
+    if (!PyArg_ParseTuple(args, "nO!:coproduct_pbw", &rank, &PyDict_Type, &terms)) {
+        return NULL;
+    }
+    if (rank <= 0 || rank > PY_SSIZE_T_MAX / rank) {
+        PyErr_SetString(PyExc_ValueError, "rank must be positive and its square must fit Py_ssize_t");
+        return NULL;
+    }
+
+    PyObject *fraction_type = *(PyObject **)PyModule_GetState(module);
+    PyObject *items = PyDict_Items(terms);
+    if (items == NULL) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    if (validate_terms(items, rank * rank, fraction_type, 1) == 0) {
+        PyObject *one = PyLong_FromLong(1);
+        result = one == NULL ? NULL : PyDict_New();
+        for (Py_ssize_t i = 0; result != NULL && i < PyList_GET_SIZE(items); i++) {
+            PyObject *term = PyList_GET_ITEM(items, i);
+            if (coproduct_term(result, PyTuple_GET_ITEM(term, 0),
+                               PyTuple_GET_ITEM(term, 1), one) < 0) {
+                Py_CLEAR(result);
+            }
+        }
+        Py_XDECREF(one);
+    }
+    Py_DECREF(items);
+    return result;
+}
+
 static int
 uea_traverse(PyObject *module, visitproc visit, void *arg)
 {
@@ -286,6 +466,7 @@ static PyMethodDef methods[] = {
     {"multiply_pbw", multiply_pbw, METH_VARARGS, "Multiply and normal-order PBW terms."},
     {"multiply_ordered_pbw", multiply_ordered_pbw, METH_VARARGS,
      "Multiply PBW polynomials whose words are already ordered."},
+    {"coproduct_pbw", coproduct_pbw, METH_VARARGS, "Expand the coproduct of ordered PBW terms."},
     {NULL, NULL, 0, NULL}
 };
 

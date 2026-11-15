@@ -22,7 +22,9 @@ __all__ = [
     "inner_product",
     "is_gt_pattern",
     "lowering_operator",
+    "quadratic_casimir_eigenvalue",
     "raising_operator",
+    "tensor_with_standard",
     "weight",
 ]
 
@@ -125,4 +127,5 @@ def inner_product(left, right):
 # These modules use the pattern and coefficient helpers defined above.
 from ._action import apply_enveloping
 from ._highest import apply_highest_lowering, apply_highest_raising
+from ._tensor import quadratic_casimir_eigenvalue, tensor_with_standard
 from ._weight import weight

@@ -19,12 +19,19 @@ API was not established in this comparison.
 | Exact dense generator matrices | Assemble from sparse columns | Unverified | Direct via `GTrepresentationMatrices` |
 | Contravariant pairing in Molev’s basis | `inner_product` | Unverified | Unverified |
 | Rational PBW arithmetic | `EnvelopingElement` in row-major matrix-unit order | `pbw_basis()` | `universalEnvelopingAlgebra` on the documented semisimple domain |
+| PBW coproduct | Exact sparse pairs of ordered words via `coproduct()` | Unverified | Unverified |
+| Quadratic Casimir | Trace-normalized `gl_N` element and exact highest-weight eigenvalue | `casimir_element()` for supported Lie algebras | Casimir operator and scalar for semisimple representations, with its own normalization |
+| Standard and dual tensor decomposition | Multiplicity-one highest weights via `tensor_with_standard()` | Character products via `WeylCharacterRing` | Tensor products of semisimple Lie algebra modules |
 | Molev’s raising and lowering operators | Constructors, general sparse action, and direct highest-line action | Unverified | Unverified |
 
 Exact checks against passageMath agreed on 59,808 validation decisions,
 12,045 weight coordinates, and 375 rational PBW products. Generator actions
 agreed with Macaulay2 on all 39,400 matrix entries across four `sl_3` modules
 after matching the GT basis order.
+The Casimir matched live Macaulay2 on 105 GT vectors and matched passageMath
+symbolically on `sl_3` after converting to each tool's normalization.
+All 20 tested standard or dual tensor products matched Macaulay2 after
+conversion to Dynkin coordinates.
 
 [SageMath pattern API](https://doc.sagemath.org/html/en/reference/combinat/sage/combinat/gelfand_tsetlin_patterns.html) ·
 [SageMath PBW API](https://doc.sagemath.org/html/en/reference/algebras/sage/algebras/lie_algebras/poincare_birkhoff_witt.html) ·
@@ -135,6 +142,55 @@ The C multiplication kernel joins already ordered word pairs directly and
 normal-orders other products using the matrix-unit commutators. It combines
 equal terms. Symbolic products allocate storage for
 their terms and can grow as commutators expand.
+
+### Coproduct and quadratic Casimir
+
+`element.coproduct()` returns a read-only sparse mapping from pairs of
+PBW words to exact coefficients. The empty word is the unit in either
+factor. The coproduct sends `E[i,j]` to `E[i,j] ⊗ 1 + 1 ⊗ E[i,j]` and
+extends multiplicatively. The C kernel splits the multiplicity of each
+generator and evaluates the corresponding binomial coefficients. Both words
+retain their PBW order.
+
+`EnvelopingElement.quadratic_casimir(rank)` returns Molev’s trace-normalized
+Casimir $C = \sum_{i,j} E_{ij}E_{ji}$ in PBW form. Its coproduct has cross
+term $\Delta(C)-C\otimes 1-1\otimes C=2\sum_{i,j}E_{ij}\otimes E_{ji}$.
+[Molev, §2.4](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import EnvelopingElement
+
+x = EnvelopingElement.matrix_unit(2, 1, 2)
+word = ((1, 2),)
+assert (x**2).coproduct() == {(word * 2, ()): 1, (word, word): 2, ((), word * 2): 1}
+
+casimir = EnvelopingElement.quadratic_casimir(2)
+assert casimir * x == x * casimir
+assert casimir.coproduct()[word, ((2, 1),)] == 2
+```
+
+### Casimir eigenvalues and tensoring with the standard module
+
+`quadratic_casimir_eigenvalue(highest_weight)` evaluates
+$c(\lambda)=\sum_i\lambda_i(\lambda_i+N-2i+1)$ in exact arithmetic.
+`tensor_with_standard(highest_weight, dual=False)` returns the dominant
+summand labels $\lambda+\varepsilon_i$, each with multiplicity one.
+With `dual=True` it returns the dominant $\lambda-\varepsilon_i$ labels.
+The inputs are real highest weights with nonnegative integral gaps.
+
+The Casimir differences give the scalar of the cross term on each summand.
+For the standard module, the half cross term acts by $\lambda_i-i+1$.
+For the dual standard module, Molev’s matrix $E$ is the negative of the
+half cross term and acts by $\lambda_i+N-i$.
+[Molev, equations (2.30) and (2.31)](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import quadratic_casimir_eigenvalue, tensor_with_standard
+
+assert quadratic_casimir_eigenvalue((2, 1, 0)) == 9
+assert tensor_with_standard((2, 2, 0)) == ((3, 2, 0), (2, 2, 1))
+assert tensor_with_standard((2, 2, 0), dual=True) == ((2, 1, 0), (2, 2, -1))
+```
 
 ## Molev’s raising and lowering operators
 

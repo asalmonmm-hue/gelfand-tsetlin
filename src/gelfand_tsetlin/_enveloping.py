@@ -7,7 +7,7 @@ from operator import index
 from sys import maxsize
 from types import MappingProxyType
 
-from ._uea import multiply_ordered_pbw, multiply_pbw
+from ._uea import coproduct_pbw, multiply_ordered_pbw, multiply_pbw
 
 
 def _checked_rank(rank):
@@ -22,6 +22,10 @@ def _matrix_unit_id(rank, i, j):
     if not (1 <= i <= rank and 1 <= j <= rank):
         raise ValueError("matrix-unit indices must be within the rank")
     return (i - 1) * rank + j - 1
+
+
+def _unpack_word(rank, word):
+    return tuple((unit // rank + 1, unit % rank + 1) for unit in word)
 
 
 def _rational(value):
@@ -87,6 +91,22 @@ class EnvelopingElement:
         value = _rational(coefficient)
         return cls._from_ordered(rank, {(): value} if value else {})
 
+    @classmethod
+    def quadratic_casimir(cls, rank):
+        """Return the trace-normalized Casimir sum of E[i,j] E[j,i]."""
+        rank = _checked_rank(rank)
+        terms = {}
+        for i in range(rank):
+            diagonal = i * (rank + 1)
+            terms[diagonal, diagonal] = 1
+            # From E[j,i] E[i,j] = E[i,j] E[j,i] + E[j,j] - E[i,i].
+            linear = 2 * i - rank + 1
+            if linear:
+                terms[diagonal,] = linear
+            for j in range(i + 1, rank):
+                terms[i * rank + j, j * rank + i] = 2
+        return cls._from_ordered(rank, terms)
+
     @property
     def rank(self):
         return self._rank
@@ -95,8 +115,21 @@ class EnvelopingElement:
     def terms(self):
         """Read-only mapping from PBW words to exact coefficients."""
         terms = {
-            tuple((unit // self.rank + 1, unit % self.rank + 1) for unit in word): value
+            _unpack_word(self.rank, word): value
             for word, value in sorted(self._terms.items())
+        }
+        return MappingProxyType(terms)
+
+    def coproduct(self):
+        """Return exact coefficients indexed by pairs of ordered PBW words.
+
+        Each word uses the same one-based matrix-unit pairs as .terms.
+        The empty word represents the identity in either factor.
+        """
+        rank = self.rank
+        terms = {
+            (_unpack_word(rank, left), _unpack_word(rank, right)): value
+            for (left, right), value in coproduct_pbw(rank, self._terms).items()
         }
         return MappingProxyType(terms)
 
