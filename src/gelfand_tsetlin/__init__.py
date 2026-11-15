@@ -9,9 +9,19 @@ from typing import Iterable
 
 from ._gt import check_rows, coefficient_i64, inner_product_i64
 from ._enveloping import EnvelopingElement
+from ._molev import lowering_operator, raising_operator
 
 
-__all__ = ["EnvelopingElement", "RowArray", "coefficient", "inner_product", "is_gt_pattern"]
+__all__ = [
+    "EnvelopingElement",
+    "RowArray",
+    "apply_enveloping",
+    "coefficient",
+    "inner_product",
+    "is_gt_pattern",
+    "lowering_operator",
+    "raising_operator",
+]
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -105,3 +115,7 @@ def inner_product(left, right):
     rank, _, _, left, right = _normalized_pair(left, right)
     numerator, _ = inner_product_i64(rank, left, right)
     return numerator
+
+
+# The action module uses the pattern and coefficient helpers defined above.
+from ._action import apply_enveloping

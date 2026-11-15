@@ -89,6 +89,28 @@ The C multiplication kernel normal-orders products using the matrix-unit
 commutators and combines equal terms. Symbolic products allocate storage for
 their terms and can grow as commutators expand.
 
+## Molev’s raising and lowering operators
+
+`raising_operator(rank, i, level=None)` and `lowering_operator(rank, i, level=None)`
+construct Molev’s `z[i,level]` and `z[level,i]` from equations (2.9) and
+(2.10). All indices are one-based. The level defaults to the ambient rank.
+A lower level selects the corresponding upper-left subalgebra.
+
+`apply_enveloping(element, source)` applies the element to one GT vector,
+acting with the rightmost factor first. It returns a dictionary of target
+patterns and nonzero coefficients. It uses the existing C coefficients for
+adjacent generators and composes sparse commutators for other matrix units.
+The action accepts real common shifts and uses exact rational coefficients
+within the range of the fixed-width coefficient kernel.
+
+```python
+from gelfand_tsetlin import RowArray, apply_enveloping, lowering_operator
+
+highest = RowArray([[1, 0, 0], [1, 0], [1]])
+third = RowArray([[1, 0, 0], [0, 0], [0]])
+assert apply_enveloping(lowering_operator(3, 1), highest) == {third: 1}
+```
+
 ## Run locally
 
 Build with CPython and a C compiler for that Python installation.
