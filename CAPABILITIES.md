@@ -24,6 +24,8 @@ API was not established in this comparison.
 | Standard and dual tensor decomposition | Multiplicity-one highest weights via `tensor_with_standard()` | Character products via `WeylCharacterRing` | Tensor products of semisimple Lie algebra modules |
 | Dual-standard summand projectors | Exact sparse action in the uncoupled tensor GT basis | Unverified | Unverified |
 | Quantum minors and the $\tau,A,B,C$ polynomials | PBW polynomial coefficients and right evaluation, including the Capelli determinant | Unverified | Unverified |
+| Quantum-minor construction of GT basis vectors | Ordered $\kappa$ factors and exact scale in Molev’s GT normalization | Unverified | Unverified |
+| Gelfand–Tsetlin subalgebra | Joint eigenvalues of the standard Capelli generators | Unverified | Unverified |
 | Molev’s raising and lowering operators | Constructors, general sparse action, and direct highest-line action | Unverified | Unverified |
 
 Exact checks against passageMath agreed on 59,808 validation decisions,
@@ -299,6 +301,42 @@ from gelfand_tsetlin import quantum_minor, tau_raising
 assert a_polynomial(3, 2) == quantum_minor(3, (1, 2), (1, 2))
 assert b_polynomial(3, 2, 0) == -tau_raising(3, 2, 0)
 assert c_polynomial(3, 2) == quantum_minor(3, (1, 3), (1, 2))
+```
+
+### Quantum-minor construction of the GT basis
+
+`kappa_factors(pattern)` yields pairs `(m, u)` for the product of
+$C_m(u)$ factors in Molev’s Theorem 2.21, in the order in which the
+product is written. The rightmost factor acts first.
+`kappa_scale(pattern)` computes the exact integer $s$ in
+$\kappa_\Lambda=s\,\xi_\Lambda$ for the same choice of highest vector.
+It groups the single-step coefficients of (2.40) into products of
+consecutive integers and needs no PBW expansion. Both functions accept
+real common shifts. [Molev, Theorems 2.20 and 2.21](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import kappa_factors, kappa_scale
+
+pattern = ((4, 2, 0), (2, 1), (1,))
+assert list(kappa_factors(pattern)) == [(2, -3), (2, -4), (1, -2), (1, -3), (1, -4), (2, -1)]
+assert kappa_scale(pattern) == 18
+```
+
+### Gelfand–Tsetlin subalgebra
+
+`gt_eigenvalues(pattern)` returns the joint eigenvalues of the standard
+generators $a_{mi}$ of the GT subalgebra. The outer tuple lists levels
+from $m=1$ to $N$. The $m$-th inner tuple lists $\alpha_{m1},\ldots,\alpha_{mm}$
+in descending degree, omitting the monic leading coefficient of
+$\prod_{i=1}^m(u+\lambda_{mi}-i+1)$. The eigenvalues are exact for real
+common shifts. To evaluate a polynomial in the generators on a GT vector,
+substitute these eigenvalues for its variables.
+[Molev, equation (2.41) and Proposition 2.22](https://arxiv.org/abs/math/0211289).
+
+```python
+from gelfand_tsetlin import gt_eigenvalues
+
+assert gt_eigenvalues(((2, 1, 0), (2, 1), (1,))) == ((1,), (2, 0), (0, -4, 0))
 ```
 
 ## Molev’s raising and lowering operators

@@ -337,6 +337,53 @@ highest_line_coefficient(PyObject *Py_UNUSED(self), PyObject *args)
     return product;
 }
 
+static PyObject *
+gt_row_eigenvalues(PyObject *Py_UNUSED(self), PyObject *row)
+{
+    if (!PyTuple_Check(row)) {
+        PyErr_SetString(PyExc_TypeError, "GT eigenvalue row must be a tuple");
+        return NULL;
+    }
+    Py_ssize_t length = PyTuple_GET_SIZE(row);
+    PyObject *coefficients = PyTuple_New(length);
+    if (coefficients == NULL) {
+        return NULL;
+    }
+
+    for (Py_ssize_t column = 0; column < length; column++) {
+        PyObject *entry = PyTuple_GET_ITEM(row, column);
+        PyObject *index = PyLong_FromSsize_t(column);
+        PyObject *shifted = index == NULL ? NULL : PyNumber_Subtract(entry, index);
+        Py_XDECREF(index);
+        if (shifted == NULL) {
+            Py_DECREF(coefficients);
+            return NULL;
+        }
+
+        /* Multiply by u + shifted, updating from the lowest power of u.
+         * Slot zero is the coefficient immediately below the monic term. */
+        for (Py_ssize_t slot = column; slot >= 0; slot--) {
+            PyObject *coefficient = slot == 0 ? Py_NewRef(shifted) :
+                PyNumber_Multiply(shifted, PyTuple_GET_ITEM(coefficients, slot - 1));
+            PyObject *previous = PyTuple_GET_ITEM(coefficients, slot);
+            if (coefficient != NULL && previous != NULL) {
+                PyObject *sum = PyNumber_Add(previous, coefficient);
+                Py_DECREF(coefficient);
+                coefficient = sum;
+            }
+            if (coefficient == NULL) {
+                Py_DECREF(shifted);
+                Py_DECREF(coefficients);
+                return NULL;
+            }
+            PyTuple_SET_ITEM(coefficients, slot, coefficient);
+            Py_XDECREF(previous);
+        }
+        Py_DECREF(shifted);
+    }
+    return coefficients;
+}
+
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
     {"check_integer_rows", check_integer_rows, METH_O,
@@ -347,6 +394,8 @@ static PyMethodDef methods[] = {
     {"inner_product_i64", inner_product_i64, METH_VARARGS, "Evaluate the native GT pairing."},
     {"highest_line_coefficient", highest_line_coefficient, METH_VARARGS,
      "Evaluate the exact raising or lowering coefficient between highest lines."},
+    {"gt_row_eigenvalues", gt_row_eigenvalues, METH_O,
+     "Evaluate the exact non-leading coefficients of a row's Capelli polynomial."},
     {NULL, NULL, 0, NULL}
 };
 

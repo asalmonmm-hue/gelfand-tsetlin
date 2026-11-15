@@ -31,8 +31,11 @@ __all__ = [
     "b_polynomial",
     "c_polynomial",
     "coefficient",
+    "gt_eigenvalues",
     "inner_product",
     "is_gt_pattern",
+    "kappa_factors",
+    "kappa_scale",
     "lowering_operator",
     "quadratic_casimir_eigenvalue",
     "quantum_minor",
@@ -141,7 +144,9 @@ def inner_product(left, right):
 
 # These modules use the pattern and coefficient helpers defined above.
 from ._action import apply_enveloping
+from ._character import gt_eigenvalues
 from ._highest import apply_highest_lowering, apply_highest_raising
+from ._kappa import kappa_factors, kappa_scale
 from ._projectors import apply_dual_standard_projector
 from ._tensor import quadratic_casimir_eigenvalue, tensor_with_standard
 from ._weight import weight
