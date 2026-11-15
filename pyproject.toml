@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,3 +7,5 @@ name = "gelfand-tsetlin"
 version = "0.1.0"
 description = "Gelfand–Tsetlin patterns for gl_N"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]

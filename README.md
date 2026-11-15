@@ -35,3 +35,7 @@ seven interleaved runs. PBW uses nine interleaved runs with passageMath’s
 basis-product cache populated. Matrix timings use 31 runs with patterns
 already available. gelfand-tsetlin materializes dense output from sparse
 columns. A dash indicates an unmeasured workload.
+
+## License
+
+This project is released under the [MIT License](LICENSE).
