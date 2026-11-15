@@ -7,7 +7,7 @@ from operator import index
 from sys import maxsize
 from types import MappingProxyType
 
-from ._uea import multiply_pbw
+from ._uea import multiply_ordered_pbw, multiply_pbw
 
 
 def _checked_rank(rank):
@@ -151,7 +151,9 @@ class EnvelopingElement:
         other = self._as_element(other)
         if other is NotImplemented:
             return NotImplemented
-        return self._from_ordered(self.rank, multiply_pbw(self.rank, self._terms, other._terms))
+        return self._from_ordered(
+            self.rank, multiply_ordered_pbw(self.rank, self._terms, other._terms)
+        )
 
     def __rmul__(self, other):
         if isinstance(other, (int, Fraction)):

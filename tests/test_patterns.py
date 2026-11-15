@@ -49,3 +49,18 @@ class PatternTests(TestCase):
         value = 10**100
         self.assertTrue(is_gt_pattern([[value + 1, value], [value]]))
         self.assertFalse(is_gt_pattern([[value, 0], [Fraction(1, 2)]]))
+
+    def test_integer_fast_path_preserves_iterable_and_scalar_fallback(self):
+        class Integer(int):
+            def __int__(self):
+                return 1
+
+        self.assertTrue(is_gt_pattern(iter((iter((2, 0)), iter((1,))))))
+        self.assertTrue(is_gt_pattern(((2, 0), (Integer(3),))))
+
+        def broken_row():
+            raise RuntimeError("input iteration failed")
+            yield 0
+
+        with self.assertRaisesRegex(RuntimeError, "input iteration failed"):
+            is_gt_pattern([[2, 1, 0], [5, 0], broken_row()])

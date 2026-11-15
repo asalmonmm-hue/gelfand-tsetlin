@@ -58,6 +58,17 @@ class EnvelopingTests(TestCase):
         a, b, c = e32 + e21, e12 + Fraction(1, 7), e21 - e32
         self.assertEqual((a * b) * c, a * (b * c))
 
+    def test_ordered_term_products_and_identity_collect_and_cancel(self):
+        a, b = matrix_unit(1, 2), matrix_unit(1, 3)
+        left = 1 - Fraction(1, 3) * a
+        right = Fraction(1, 3) * a + Fraction(2, 5) * b + 1
+        self.assertEqual(dict((left * right).terms), {
+            (): 1,
+            ((1, 3),): Fraction(2, 5),
+            ((1, 2), (1, 2)): Fraction(-1, 9),
+            ((1, 2), (1, 3)): Fraction(-2, 15),
+        })
+
     def test_molev_lowering_operator(self):
         e11, e22 = matrix_unit(1, 1), matrix_unit(2, 2)
         e31, e32, e21 = matrix_unit(3, 1), matrix_unit(3, 2), matrix_unit(2, 1)

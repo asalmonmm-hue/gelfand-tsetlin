@@ -24,6 +24,20 @@ lower[j] - upper[j + 1]
 
 Every entry may share a common complex shift, since the shift cancels from both differences.
 The validator accepts Python integers, `Fraction`, and finite `Decimal`, `float`, and `complex` values. It uses the exact stored values of floats and complex components. Use `Fraction` or `Decimal` when the shift is intended to be exact in decimal.
+Built-in integer lists and tuples use a direct C check on the supplied rows.
+
+## Weights
+
+`weight(pattern)` returns all the diagonal weights in order from `E[1,1]`
+through `E[N,N]`. It validates the pattern once and sums each row once.
+Real weights are exact. A nonreal common shift uses Python's `complex`
+precision, as for the single-entry diagonal API.
+
+```python
+from gelfand_tsetlin import weight
+
+assert weight([[2, 1, 0], [1, 0], [1]]) == (1, 0, 2)
+```
 
 ## Matrix coefficients
 
@@ -85,8 +99,9 @@ assert e21 * e12 == e12 * e21 + e22 - e11
 assert (e12 ** 2).terms == {((1, 2), (1, 2)): 1}
 ```
 
-The C multiplication kernel normal-orders products using the matrix-unit
-commutators and combines equal terms. Symbolic products allocate storage for
+The C multiplication kernel joins already ordered word pairs directly and
+normal-orders other products using the matrix-unit commutators. It combines
+equal terms. Symbolic products allocate storage for
 their terms and can grow as commutators expand.
 
 ## Molev’s raising and lowering operators

@@ -39,12 +39,8 @@ push_bracket_term(PyObject *work, PyObject *word, Py_ssize_t position,
 }
 
 static int
-add_ordered_word(PyObject *result, PyObject *word, PyObject *coefficient)
+accumulate_term(PyObject *result, PyObject *key, PyObject *coefficient)
 {
-    PyObject *key = PyList_AsTuple(word);
-    if (key == NULL) {
-        return -1;
-    }
     PyObject *previous = PyDict_GetItemWithError(result, key);
     int status;
     if (previous == NULL) {
@@ -60,7 +56,6 @@ add_ordered_word(PyObject *result, PyObject *word, PyObject *coefficient)
             Py_DECREF(sum);
         }
     }
-    Py_DECREF(key);
     return status;
 }
 
@@ -106,11 +101,55 @@ order_word(PyObject *work, PyObject *word, PyObject *coefficient,
             position--;
         }
     }
-    return add_ordered_word(result, word, coefficient);
+    PyObject *key = PyList_AsTuple(word);
+    if (key == NULL) {
+        return -1;
+    }
+    int status = accumulate_term(result, key, coefficient);
+    Py_DECREF(key);
+    return status;
 }
 
 static int
-multiply_terms(PyObject *left, PyObject *right, Py_ssize_t rank, PyObject *result)
+normalize_product(PyObject *joined, PyObject *coefficient,
+                  Py_ssize_t rank, PyObject *result)
+{
+    PyObject *word = PySequence_List(joined);
+    if (word == NULL) {
+        return -1;
+    }
+    PyObject *work = PyList_New(0);
+    int status = work == NULL ? -1 : order_word(work, word, coefficient, rank, result);
+    Py_DECREF(word);
+    while (status == 0 && PyList_GET_SIZE(work) != 0) {
+        Py_ssize_t last = PyList_GET_SIZE(work) - 1;
+        PyObject *term = Py_NewRef(PyList_GET_ITEM(work, last));
+        status = PyList_SetSlice(work, last, last + 1, NULL);
+        if (status == 0) {
+            status = order_word(
+                work, PyTuple_GET_ITEM(term, 0), PyTuple_GET_ITEM(term, 1), rank, result);
+        }
+        Py_DECREF(term);
+    }
+    Py_XDECREF(work);
+    return status;
+}
+
+static int
+ordered_boundary(PyObject *left, PyObject *right)
+{
+    Py_ssize_t left_length = PyTuple_GET_SIZE(left);
+    if (left_length == 0 || PyTuple_GET_SIZE(right) == 0) {
+        return 1;
+    }
+    /* Both words were already checked for order and generator range. */
+    return PyLong_AsSsize_t(PyTuple_GET_ITEM(left, left_length - 1)) <=
+        PyLong_AsSsize_t(PyTuple_GET_ITEM(right, 0));
+}
+
+static int
+multiply_terms(PyObject *left, PyObject *right, Py_ssize_t rank,
+               int canonical, PyObject *result)
 {
     PyObject *coefficient = PyNumber_Multiply(
         PyTuple_GET_ITEM(left, 1), PyTuple_GET_ITEM(right, 1));
@@ -119,31 +158,25 @@ multiply_terms(PyObject *left, PyObject *right, Py_ssize_t rank, PyObject *resul
     }
     int status = PyObject_IsTrue(coefficient);
     if (status == 1) {
-        PyObject *joined = PySequence_Concat(
-            PyTuple_GET_ITEM(left, 0), PyTuple_GET_ITEM(right, 0));
-        PyObject *word = joined == NULL ? NULL : PySequence_List(joined);
-        Py_XDECREF(joined);
-        PyObject *work = word == NULL ? NULL : PyList_New(0);
-        status = work == NULL ? -1 : order_word(work, word, coefficient, rank, result);
-        Py_XDECREF(word);
-        while (status == 0 && PyList_GET_SIZE(work) != 0) {
-            Py_ssize_t last = PyList_GET_SIZE(work) - 1;
-            PyObject *term = Py_NewRef(PyList_GET_ITEM(work, last));
-            status = PyList_SetSlice(work, last, last + 1, NULL);
-            if (status == 0) {
-                status = order_word(
-                    work, PyTuple_GET_ITEM(term, 0), PyTuple_GET_ITEM(term, 1), rank, result);
-            }
-            Py_DECREF(term);
+        PyObject *left_word = PyTuple_GET_ITEM(left, 0);
+        PyObject *right_word = PyTuple_GET_ITEM(right, 0);
+        PyObject *joined = PySequence_Concat(left_word, right_word);
+        if (joined == NULL) {
+            status = -1;
+        } else if (canonical && ordered_boundary(left_word, right_word)) {
+            status = accumulate_term(result, joined, coefficient);
+        } else {
+            status = normalize_product(joined, coefficient, rank, result);
         }
-        Py_XDECREF(work);
+        Py_XDECREF(joined);
     }
     Py_DECREF(coefficient);
     return status;
 }
 
 static int
-validate_terms(PyObject *items, Py_ssize_t generators, PyObject *fraction_type)
+validate_terms(PyObject *items, Py_ssize_t generators, PyObject *fraction_type,
+               int canonical)
 {
     for (Py_ssize_t i = 0; i < PyList_GET_SIZE(items); i++) {
         PyObject *term = PyList_GET_ITEM(items, i);
@@ -158,6 +191,7 @@ validate_terms(PyObject *items, Py_ssize_t generators, PyObject *fraction_type)
             PyErr_SetString(PyExc_TypeError, "each PBW coefficient must be an int or Fraction");
             return -1;
         }
+        Py_ssize_t previous = -1;
         for (Py_ssize_t j = 0; j < PyTuple_GET_SIZE(word); j++) {
             PyObject *entry = PyTuple_GET_ITEM(word, j);
             if (!PyLong_CheckExact(entry)) {
@@ -171,17 +205,23 @@ validate_terms(PyObject *items, Py_ssize_t generators, PyObject *fraction_type)
                 }
                 return -1;
             }
+            if (canonical && id < previous) {
+                PyErr_SetString(PyExc_ValueError, "each PBW word must be ordered");
+                return -1;
+            }
+            previous = id;
         }
     }
     return 0;
 }
 
 static PyObject *
-multiply_pbw(PyObject *module, PyObject *args)
+multiply_pbw_impl(PyObject *module, PyObject *args, int canonical)
 {
     Py_ssize_t rank;
     PyObject *left, *right;
-    if (!PyArg_ParseTuple(args, "nO!O!:multiply_pbw", &rank,
+    const char *format = canonical ? "nO!O!:multiply_ordered_pbw" : "nO!O!:multiply_pbw";
+    if (!PyArg_ParseTuple(args, format, &rank,
                           &PyDict_Type, &left, &PyDict_Type, &right)) {
         return NULL;
     }
@@ -195,14 +235,15 @@ multiply_pbw(PyObject *module, PyObject *args)
     PyObject *right_terms = left_terms == NULL ? NULL : PyDict_Items(right);
     PyObject *result = NULL;
     if (right_terms != NULL &&
-        validate_terms(left_terms, rank * rank, fraction_type) == 0 &&
-        validate_terms(right_terms, rank * rank, fraction_type) == 0) {
+        validate_terms(left_terms, rank * rank, fraction_type, canonical) == 0 &&
+        validate_terms(right_terms, rank * rank, fraction_type, canonical) == 0) {
         result = PyDict_New();
         if (result != NULL) {
             for (Py_ssize_t i = 0; i < PyList_GET_SIZE(left_terms) && result != NULL; i++) {
                 for (Py_ssize_t j = 0; j < PyList_GET_SIZE(right_terms); j++) {
                     if (multiply_terms(PyList_GET_ITEM(left_terms, i),
-                                       PyList_GET_ITEM(right_terms, j), rank, result) < 0) {
+                                       PyList_GET_ITEM(right_terms, j),
+                                       rank, canonical, result) < 0) {
                         Py_CLEAR(result);
                         break;
                     }
@@ -213,6 +254,18 @@ multiply_pbw(PyObject *module, PyObject *args)
     Py_XDECREF(left_terms);
     Py_XDECREF(right_terms);
     return result;
+}
+
+static PyObject *
+multiply_pbw(PyObject *module, PyObject *args)
+{
+    return multiply_pbw_impl(module, args, 0);
+}
+
+static PyObject *
+multiply_ordered_pbw(PyObject *module, PyObject *args)
+{
+    return multiply_pbw_impl(module, args, 1);
 }
 
 static int
@@ -231,6 +284,8 @@ uea_clear(PyObject *module)
 
 static PyMethodDef methods[] = {
     {"multiply_pbw", multiply_pbw, METH_VARARGS, "Multiply and normal-order PBW terms."},
+    {"multiply_ordered_pbw", multiply_ordered_pbw, METH_VARARGS,
+     "Multiply PBW polynomials whose words are already ordered."},
     {NULL, NULL, 0, NULL}
 };
 

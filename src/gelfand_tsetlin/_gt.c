@@ -79,6 +79,47 @@ check_rows(PyObject *Py_UNUSED(self), PyObject *rows)
     Py_RETURN_TRUE;
 }
 
+static PyObject *
+check_integer_rows(PyObject *Py_UNUSED(self), PyObject *rows)
+{
+    if (!PyList_CheckExact(rows) && !PyTuple_CheckExact(rows)) {
+        Py_RETURN_NONE;
+    }
+    Py_ssize_t rank = PySequence_Fast_GET_SIZE(rows);
+    PyObject *const *upper = NULL;
+    int valid = rank > 0;
+    for (Py_ssize_t i = 0; i < rank; i++) {
+        PyObject *row = PySequence_Fast_GET_ITEM(rows, i);
+        if (!PyList_CheckExact(row) && !PyTuple_CheckExact(row)) {
+            Py_RETURN_NONE;
+        }
+        Py_ssize_t length = PySequence_Fast_GET_SIZE(row);
+        PyObject *const *entries = PySequence_Fast_ITEMS(row);
+        if (length != rank - i) {
+            valid = 0;
+        }
+        /* Continue guarding types after failure so fallback still handles any
+         * custom iteration or scalar conversion elsewhere in the input. */
+        for (Py_ssize_t j = 0; j < length; j++) {
+            PyObject *entry = entries[j];
+            if (!PyLong_CheckExact(entry)) {
+                Py_RETURN_NONE;
+            }
+            if (valid && upper != NULL) {
+                valid = PyObject_RichCompareBool(upper[j], entry, Py_GE);
+                if (valid == 1) {
+                    valid = PyObject_RichCompareBool(entry, upper[j + 1], Py_GE);
+                }
+                if (valid < 0) {
+                    return NULL;
+                }
+            }
+        }
+        upper = entries;
+    }
+    return PyBool_FromLong(valid);
+}
+
 /* This bridge owns the input buffers. The kernels only borrow them. */
 static int64_t *
 pack_patterns(Py_ssize_t rank, PyObject *source, PyObject *target)
@@ -229,6 +270,8 @@ inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
 
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
+    {"check_integer_rows", check_integer_rows, METH_O,
+     "Validate builtin integer rows or return None for frontend fallback."},
     {"coefficient_i64", coefficient_i64, METH_VARARGS, "Evaluate a native GT coefficient."},
     {"adjacent_coefficients_i64", adjacent_coefficients_i64, METH_VARARGS,
      "Evaluate all nonzero terms for one adjacent generator."},

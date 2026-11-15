@@ -7,7 +7,7 @@ from numbers import Rational
 from operator import index
 from typing import Iterable
 
-from ._gt import check_rows, coefficient_i64, inner_product_i64
+from ._gt import check_integer_rows, check_rows, coefficient_i64, inner_product_i64
 from ._enveloping import EnvelopingElement
 from ._molev import lowering_operator, raising_operator
 
@@ -21,6 +21,7 @@ __all__ = [
     "is_gt_pattern",
     "lowering_operator",
     "raising_operator",
+    "weight",
 ]
 
 
@@ -66,7 +67,9 @@ def is_gt_pattern(array: RowArray | Iterable[Iterable[object]]) -> bool:
     N must be positive. The entries can share a nonintegral real or complex
     shift. Float and complex components are interpreted as exact binary values.
     """
-    return check_rows(_pattern_coordinates(array))
+    rows = array.rows if type(array) is RowArray else array
+    result = check_integer_rows(rows)
+    return check_rows(_pattern_coordinates(array)) if result is None else result
 
 
 def _normalized_pair(source, target):
@@ -117,5 +120,6 @@ def inner_product(left, right):
     return numerator
 
 
-# The action module uses the pattern and coefficient helpers defined above.
+# These modules use the pattern and coefficient helpers defined above.
 from ._action import apply_enveloping
+from ._weight import weight
