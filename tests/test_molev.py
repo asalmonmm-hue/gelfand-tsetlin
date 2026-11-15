@@ -48,6 +48,27 @@ class MolevOperatorTests(TestCase):
 
 
 class EnvelopingActionTests(TestCase):
+    def test_adjacent_column_emits_all_admissible_moves(self):
+        top = (4, 2, 0)
+        source = RowArray([top, (3, 1), (2,)])
+        self.assertEqual(
+            apply_enveloping(matrix_unit(2, 3), source),
+            {RowArray([top, (4, 1), (2,)]): Fraction(10, 3),
+             RowArray([top, (3, 2), (2,)]): Fraction(8, 3)},
+        )
+        self.assertEqual(
+            apply_enveloping(matrix_unit(3, 2), source),
+            {RowArray([top, (2, 1), (2,)]): Fraction(1, 3),
+             RowArray([top, (3, 0), (2,)]): Fraction(2, 3)},
+        )
+
+    def test_adjacent_column_preserves_absent_support_beyond_native_range(self):
+        top = (1 << 64, 0)
+        source = RowArray([top, (top[0],)])
+        self.assertEqual(apply_enveloping(EnvelopingElement.matrix_unit(2, 1, 2), source), {})
+        with self.assertRaises(OverflowError):
+            apply_enveloping(EnvelopingElement.matrix_unit(2, 2, 1), source)
+
     def test_products_act_in_operator_order(self):
         source = RowArray([[1, 0, 0], [1, 0], [1]])
         e12, e21 = matrix_unit(1, 2), matrix_unit(2, 1)

@@ -108,6 +108,42 @@ adjacent_coefficient(const int64_t *row, size_t length, size_t column,
 }
 
 enum gt_coefficient_status
+gt_adjacent_coefficient(size_t rank, size_t i, size_t j,
+                        const int64_t *source, size_t column,
+                        int64_t *numerator, int64_t *denominator)
+{
+    size_t total;
+    size_t tail;
+    size_t length = i < j ? i : j;
+    size_t distance = i < j ? j - i : i - j;
+    if (source == NULL || numerator == NULL || denominator == NULL ||
+        numerator == denominator || length == 0 || i > rank || j > rank ||
+        distance != 1 || column >= length || rank > (uint64_t)INT64_MAX ||
+        !triangular_size(rank, &total) || total > SIZE_MAX / sizeof(*source) ||
+        !triangular_size(length, &tail)) {
+        return GT_COEFFICIENT_INVALID;
+    }
+
+    *numerator = 0;
+    *denominator = 1;
+    const int64_t *row = source + total - tail;
+    const int64_t *upper = row - (length + 1);
+    const int64_t *lower = row + length;
+    int64_t entry = row[column];
+    int step = i < j ? 1 : -1;
+    if ((step == 1 && entry == INT64_MAX) || (step == -1 && entry == 0)) {
+        return GT_COEFFICIENT_OK;
+    }
+    entry += step;
+    if (entry > upper[column] || entry < upper[column + 1] ||
+        (column > 0 && entry > lower[column - 1]) ||
+        (column + 1 < length && entry < lower[column])) {
+        return GT_COEFFICIENT_OK;
+    }
+    return adjacent_coefficient(row, length, column, step, numerator, denominator);
+}
+
+enum gt_coefficient_status
 gt_coefficient(size_t rank, size_t i, size_t j,
                const int64_t *source, const int64_t *target,
                int64_t *numerator, int64_t *denominator)

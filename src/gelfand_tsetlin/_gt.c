@@ -81,26 +81,27 @@ check_rows(PyObject *Py_UNUSED(self), PyObject *rows)
 
 /* This bridge owns the input buffers. The kernels only borrow them. */
 static int64_t *
-pack_pair(Py_ssize_t rank, PyObject *source, PyObject *target)
+pack_patterns(Py_ssize_t rank, PyObject *source, PyObject *target)
 {
     size_t count = (size_t)PyTuple_GET_SIZE(source);
+    size_t sides = target == NULL ? 1 : 2;
     size_t n = (size_t)rank;
     size_t a = n % 2 ? n : n / 2;
     size_t b = n % 2 ? n / 2 + 1 : n + 1;
     if (rank <= 0 || b > count / a || a * b != count ||
-        count != (size_t)PyTuple_GET_SIZE(target) ||
-        count > (size_t)PY_SSIZE_T_MAX / (2 * sizeof(int64_t))) {
+        (target != NULL && count != (size_t)PyTuple_GET_SIZE(target)) ||
+        count > (size_t)PY_SSIZE_T_MAX / (sides * sizeof(int64_t))) {
         PyErr_SetString(PyExc_ValueError, "invalid native pattern buffer size");
         return NULL;
     }
 
-    int64_t *packed = PyMem_New(int64_t, 2 * count);
+    int64_t *packed = PyMem_New(int64_t, sides * count);
     if (packed == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
     PyObject *patterns[] = {source, target};
-    for (size_t side = 0; side < 2; side++) {
+    for (size_t side = 0; side < sides; side++) {
         for (size_t k = 0; k < count; k++) {
             long long value = PyLong_AsLongLong(PyTuple_GET_ITEM(patterns[side], k));
             if (value < 0 || value > INT64_MAX) {
@@ -116,15 +117,24 @@ pack_pair(Py_ssize_t rank, PyObject *source, PyObject *target)
     return packed;
 }
 
-static PyObject *
-fraction_result(enum gt_coefficient_status status, int64_t numerator, int64_t denominator)
+static int
+check_status(enum gt_coefficient_status status)
 {
     if (status == GT_COEFFICIENT_OVERFLOW) {
         PyErr_SetString(PyExc_OverflowError, "GT arithmetic exceeded its fixed-width range");
-        return NULL;
+        return 0;
     }
     if (status != GT_COEFFICIENT_OK) {
         PyErr_SetString(PyExc_ValueError, "invalid GT kernel arguments");
+        return 0;
+    }
+    return 1;
+}
+
+static PyObject *
+fraction_result(enum gt_coefficient_status status, int64_t numerator, int64_t denominator)
+{
+    if (!check_status(status)) {
         return NULL;
     }
     return Py_BuildValue("(LL)", (long long)numerator, (long long)denominator);
@@ -139,7 +149,7 @@ coefficient_i64(PyObject *Py_UNUSED(self), PyObject *args)
                           &PyTuple_Type, &source, &PyTuple_Type, &target)) {
         return NULL;
     }
-    int64_t *packed = pack_pair(rank, source, target);
+    int64_t *packed = pack_patterns(rank, source, target);
     if (packed == NULL) {
         return NULL;
     }
@@ -152,6 +162,52 @@ coefficient_i64(PyObject *Py_UNUSED(self), PyObject *args)
 }
 
 static PyObject *
+adjacent_coefficients_i64(PyObject *Py_UNUSED(self), PyObject *args)
+{
+    Py_ssize_t rank, i, j;
+    PyObject *source;
+    if (!PyArg_ParseTuple(args, "nnnO!:adjacent_coefficients_i64", &rank, &i, &j,
+                          &PyTuple_Type, &source)) {
+        return NULL;
+    }
+    Py_ssize_t length = i < j ? i : j;
+    Py_ssize_t larger = i < j ? j : i;
+    if (length <= 0 || larger > rank || larger - length != 1) {
+        PyErr_SetString(PyExc_ValueError, "indices must be adjacent and within the pattern rank");
+        return NULL;
+    }
+    int64_t *packed = pack_patterns(rank, source, NULL);
+    if (packed == NULL) {
+        return NULL;
+    }
+    PyObject *result = PyList_New(0);
+    if (result != NULL) {
+        for (Py_ssize_t column = 0; column < length; column++) {
+            int64_t numerator, denominator;
+            enum gt_coefficient_status status = gt_adjacent_coefficient(
+                (size_t)rank, (size_t)i, (size_t)j, packed, (size_t)column,
+                &numerator, &denominator);
+            if (!check_status(status)) {
+                Py_CLEAR(result);
+                break;
+            }
+            if (numerator != 0) {
+                PyObject *term = Py_BuildValue("(nLL)", column, (long long)numerator,
+                                              (long long)denominator);
+                int appended = term == NULL ? -1 : PyList_Append(result, term);
+                Py_XDECREF(term);
+                if (appended < 0) {
+                    Py_CLEAR(result);
+                    break;
+                }
+            }
+        }
+    }
+    PyMem_Free(packed);
+    return result;
+}
+
+static PyObject *
 inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
 {
     Py_ssize_t rank;
@@ -160,7 +216,7 @@ inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
                           &PyTuple_Type, &left, &PyTuple_Type, &right)) {
         return NULL;
     }
-    int64_t *packed = pack_pair(rank, left, right);
+    int64_t *packed = pack_patterns(rank, left, right);
     if (packed == NULL) {
         return NULL;
     }
@@ -174,6 +230,8 @@ inner_product_i64(PyObject *Py_UNUSED(self), PyObject *args)
 static PyMethodDef methods[] = {
     {"check_rows", check_rows, METH_O, "Validate top-first rows of exact coordinates."},
     {"coefficient_i64", coefficient_i64, METH_VARARGS, "Evaluate a native GT coefficient."},
+    {"adjacent_coefficients_i64", adjacent_coefficients_i64, METH_VARARGS,
+     "Evaluate all nonzero terms for one adjacent generator."},
     {"inner_product_i64", inner_product_i64, METH_VARARGS, "Evaluate the native GT pairing."},
     {NULL, NULL, 0, NULL}
 };

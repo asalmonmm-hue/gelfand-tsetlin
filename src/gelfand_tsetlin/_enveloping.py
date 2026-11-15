@@ -30,6 +30,15 @@ def _rational(value):
     return Fraction(value) if isinstance(value, Fraction) else int(value)
 
 
+def _add_terms(destination, source):
+    for word, value in source.items():
+        total = destination.get(word, 0) + value
+        if total:
+            destination[word] = total
+        else:
+            destination.pop(word, None)
+
+
 class EnvelopingElement:
     """A sparse rational element of U(gl_N) in row-major PBW order.
 
@@ -57,6 +66,13 @@ class EnvelopingElement:
         element._rank = rank
         element._terms = terms
         return element
+
+    @classmethod
+    def _sum_ordered(cls, rank, elements):
+        terms = {}
+        for element in elements:
+            _add_terms(terms, element._terms)
+        return cls._from_ordered(rank, terms)
 
     @classmethod
     def matrix_unit(cls, rank, i, j):
@@ -111,12 +127,7 @@ class EnvelopingElement:
         if other is NotImplemented:
             return NotImplemented
         terms = self._terms.copy()
-        for word, value in other._terms.items():
-            total = terms.get(word, 0) + value
-            if total:
-                terms[word] = total
-            else:
-                terms.pop(word, None)
+        _add_terms(terms, other._terms)
         return self._from_ordered(self.rank, terms)
 
     __radd__ = __add__

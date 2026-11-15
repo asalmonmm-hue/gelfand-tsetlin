@@ -28,4 +28,14 @@ gt_coefficient(size_t rank, size_t i, size_t j,
                const int64_t *source, const int64_t *target,
                int64_t *numerator, int64_t *denominator);
 
+/*
+ * Coefficient of an adjacent generator for a given zero-based column of the
+ * affected row. The source has the same layout and offset contract as above.
+ * Invalid edits return 0/1. No target buffer is needed.
+ */
+enum gt_coefficient_status
+gt_adjacent_coefficient(size_t rank, size_t i, size_t j,
+                        const int64_t *source, size_t column,
+                        int64_t *numerator, int64_t *denominator);
+
 #endif
